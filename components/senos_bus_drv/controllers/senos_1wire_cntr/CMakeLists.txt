@@ -5,5 +5,5 @@ idf_component_register(
     "src/onewire/onewire_crc.c"
     "src/onewire/onewire_device.c"
     INCLUDE_DIRS "include"
-    REQUIRES driver senos_bus_drv
+    REQUIRES driver idf_gpio_driver senos_bus_drv 
 )

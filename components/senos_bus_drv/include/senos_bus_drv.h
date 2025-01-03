@@ -22,7 +22,7 @@ extern "C" {
  * @return
  *      - return
  */
-esp_err_t senos_add_device(senos_dev_cfg_t *dev_cfg);
+esp_err_t senos_add_device(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
 
 #ifdef __cplusplus
 }

@@ -17,9 +17,9 @@ extern "C" {
  * Type of driver bus types
  */
 typedef enum {
-    CBUS_BUS_1WIRE, /*!< Dallas 1-Wire bus type */
-    CBUS_BUS_I2C,   /*!< I2C bus type */
-    CBUS_BUS_SPI    /*!< SPI bus type */
+    SENOS_BUS_1WIRE, /*!< Dallas 1-Wire bus type */
+    SENOS_BUS_I2C,   /*!< I2C bus type */
+    SENOS_BUS_SPI    /*!< SPI bus type */
 } senos_drv_bus_t;
 
 /**
@@ -80,6 +80,26 @@ typedef struct {
         } dev_spi;
     };
 } senos_dev_cfg_t;
+
+/** Common bus command structure */
+
+typedef struct {
+    esp_err_t (*_read)(senos_dev_transaction_t *transaction, void *handle);
+    esp_err_t (*_write)(senos_dev_transaction_t *transaction, void *handle);
+    esp_err_t (*_wr)(senos_dev_transaction_t *transaction, void *handle);
+    esp_err_t (*_reset)(void *handle);
+    esp_err_t (*_scan)(senos_dev_transaction_t *transaction, void *handle);
+} senos_drv_api;
+
+typedef senos_drv_api *senos_drv_api_t;
+
+typedef struct {
+    uint32_t device_id;
+    senos_drv_api_t *api;
+} senos_dev_handle;
+
+typedef senos_dev_handle *senos_dev_handle_t;
+
 
 #ifdef __cplusplus
 }

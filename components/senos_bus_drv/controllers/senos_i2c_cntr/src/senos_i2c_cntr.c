@@ -12,7 +12,7 @@
 #include "esp_err.h"
 
 static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
-static esp_err_t senos_i2c_deattach(senos_dev_handle_t *handle);
+static esp_err_t senos_i2c_deattach(senos_dev_handle_t handle);
 
 static senos_bus_drv bus_control = {._attach = &senos_i2c_attach, ._deattach = &senos_i2c_deattach};
 
@@ -20,7 +20,7 @@ static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
     return ESP_OK;
 }
 
-static esp_err_t senos_i2c_deattach(senos_dev_handle_t *handle) {
+static esp_err_t senos_i2c_deattach(senos_dev_handle_t handle) {
     return ESP_OK;
 }
 
