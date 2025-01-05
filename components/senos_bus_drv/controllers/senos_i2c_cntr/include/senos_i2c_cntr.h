@@ -14,10 +14,10 @@ extern "C" {
 #endif
 
 /**
- * @brief Brief
+ * @brief Get handle to i2c bus control
  *
  * @return
- *      - return
+ *      - Handle to I2C bus
  */
 void *senos_i2c_get_ctrl_handle(void);
 
