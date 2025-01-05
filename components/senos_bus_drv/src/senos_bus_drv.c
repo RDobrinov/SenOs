@@ -16,14 +16,15 @@ esp_err_t senos_add_device(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle)
     //handle = NULL;
     senos_bus_drv_t bus = (senos_bus_drv_t)(*senos_get_bus[dev_cfg->bus_type])();
     if(!bus) return ESP_FAIL; 
-    senos_dev_handle_t new_device;
-    printf("\n *** handle %p *** \n\n", handle);
+    //senos_dev_handle_t new_device;
+    //printf("\n *** handle %p *** \n\n", handle);
     esp_err_t ret = bus->_attach(dev_cfg, handle);
     //if( ESP_OK == ret) *handle = new_device;
     return ret;
+    /*
     //bus->_attach(dev_cfg, &(new_device->);
     //(*(new_device->base))->
-    printf("senos_add_device [%08lX] new_device:%p, api:%p\n", new_device->device_id, new_device, new_device->api);
+    //printf("senos_add_device [%08lX] new_device:%p, api:%p\n", new_device->device_id, new_device, new_device->api);
     senos_drv_api_t driver = *(new_device->api);
     senos_dev_transaction_t transaction = {
         .dev_cmd = 0x44,
@@ -33,4 +34,16 @@ esp_err_t senos_add_device(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle)
     driver->_read(&transaction, new_device);
     bus->_deattach(new_device);
     return ESP_OK;
+    */
+}
+
+esp_err_t senos_remove_device(senos_dev_handle_t handle) {
+    senos_bus_drv_t bus = (senos_bus_drv_t)(*senos_get_bus[handle->bus_type])();
+    return bus->_deattach(handle);
+}
+
+esp_err_t senos_scan_bus(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices) {
+    senos_bus_drv_t bus = (senos_bus_drv_t)(*senos_get_bus[dev_cfg->bus_type])();
+    if(!bus) return ESP_FAIL; 
+    return bus->_scanbus(dev_cfg, list, num_of_devices);
 }

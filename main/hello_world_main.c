@@ -14,6 +14,13 @@
 
 #include "senos_bus_drv.h"
 
+void hd(const uint8_t *buf, size_t len) {
+    if( !len ) return;
+    for(int i=0; i<len; i++) printf("%02X ", buf[i]);
+    printf("\n");
+    return;
+}
+
 void app_main(void)
 {
     printf("Hello world!\n");
@@ -43,10 +50,38 @@ void app_main(void)
         }
     };
     senos_dev_handle_t a[2]; 
-    printf("%p, %p\n", &a[0], &a[1]);
-    //return;
+    //printf("%p, %p\n", &a[0], &a[1]);
+    uint64_t holder[8];
+    size_t len = 3;
+    senos_scan_bus(&dev, (uint8_t *)holder, &len);
+    for(int i=0; i<len; i++) printf("not attached [%d] %016llX\n", len, holder[i]);
     senos_add_device(&dev, &(a[0]));
     dev.dev_1wire.rom_code = 0x28FF8C00000004DBLLU;
     senos_add_device(&dev, &(a[1]));
-    printf("main a1:%p, a2:%p\n", a[0], a[1]);
+    senos_scan_bus(&dev, (uint8_t *)holder, &len);
+    for(int i=0; i<len; i++) printf("two attached [%d] %016llX\n", len, holder[i]);
+    dev.dev_1wire.data_gpio = GPIO_NUM_22;
+    senos_scan_bus(&dev, (uint8_t *)holder, &len);
+    return;
+    //printf("main a1:%p, a2:%p\n", a[0], a[1]);
+    uint8_t data[32] = {};
+    senos_dev_transaction_t t = {
+        .data = data,
+        .dev_cmd = 0x4E,
+        .rdBytes = 0,
+        .wrBytes = 3
+    };
+    senos_drv_api_t driver = *(a[0]->api);
+    esp_err_t ret;
+    *(uint32_t *)data = 0x1F5AA5UL;
+    ret = driver->_write(&t, a[0]);
+    t.dev_cmd = 0x44;
+    t.wrBytes = 0;
+    ret = driver->_write(&t, a[0]);
+    vTaskDelay(100);
+    t.dev_cmd = 0xBE;
+    t.rdBytes = 9;
+    ret = driver->_read(&t, a[0]);
+    senos_remove_device(a[0]);
+    senos_remove_device(a[1]);
 }

@@ -26,6 +26,7 @@ extern "C" {
 typedef struct {
     esp_err_t (*_attach)(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
     esp_err_t (*_deattach)(senos_dev_handle_t handle);
+    esp_err_t (*_scanbus)(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices);
 } senos_bus_drv;
 
 typedef senos_bus_drv *senos_bus_drv_t;

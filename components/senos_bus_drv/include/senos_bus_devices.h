@@ -88,18 +88,17 @@ typedef struct {
     esp_err_t (*_write)(senos_dev_transaction_t *transaction, void *handle);
     esp_err_t (*_wr)(senos_dev_transaction_t *transaction, void *handle);
     esp_err_t (*_reset)(void *handle);
-    esp_err_t (*_scan)(senos_dev_transaction_t *transaction, void *handle);
 } senos_drv_api;
 
 typedef senos_drv_api *senos_drv_api_t;
 
 typedef struct {
     uint32_t device_id;
+    senos_drv_bus_t bus_type;
     senos_drv_api_t *api;
 } senos_dev_handle;
 
 typedef senos_dev_handle *senos_dev_handle_t;
-
 
 #ifdef __cplusplus
 }

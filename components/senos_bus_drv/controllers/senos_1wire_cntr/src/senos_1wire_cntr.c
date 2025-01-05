@@ -36,16 +36,24 @@ typedef struct senos_1wire_device {
 
 static esp_err_t senos_1wire_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
 static esp_err_t senos_1wire_deattach( senos_dev_handle_t handle);
+static esp_err_t senos_1wire_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices);
 
 static esp_err_t senos_1wire_read(senos_dev_transaction_t *transaction, void *handle);
 static esp_err_t senos_1wire_write(senos_dev_transaction_t *transaction, void *handle);
-static esp_err_t senos_1wire_wr(senos_dev_transaction_t *transaction, void *handle);
 static esp_err_t senos_1wire_reset(void *handle);
-static esp_err_t senos_1wire_scan(senos_dev_transaction_t *transaction, void *handle);
-
-
 
 static senos_1wire_device_t *senos_1wire_find_device(uint32_t id);
+
+/**
+ * @brief Prepare all data to send to 1-Wire device
+ *
+ * @param[in] transaction Transaction data
+ * @param[in] handle 1-Wire device handle
+ * @return
+ *      - ESP_OK 
+ *      - ESP_ERR_INVALID_SIZE Transaction parameters is outside of buffer size
+ */
+static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, senos_1wire_device_t *handle);
 
 /**
  * @brief Swap 1-Wire ROM Code
@@ -65,19 +73,24 @@ static uint64_t _swap_romcode(uint64_t val);
  */
 static uint16_t _genid(uint8_t *data);
 
+void hdump(const uint8_t *buf, size_t len) {
+    if( !len ) return;
+    for(int i=0; i<len; i++) printf("%02X ", buf[i]);
+    printf("\n");
+    return;
+}
+
 static senos_1wire_device_t *device_list = NULL;
-static senos_bus_drv bus_control = {._attach = &senos_1wire_attach, ._deattach = &senos_1wire_deattach};
+static senos_bus_drv bus_control = {._attach = &senos_1wire_attach, ._deattach = &senos_1wire_deattach, ._scanbus = &senos_1wire_bus_scan};
 static senos_drv_api senos_1wire_api = {
     ._read = &senos_1wire_read,
     ._write = &senos_1wire_write,
-    ._wr = &senos_1wire_wr,
+    ._wr = &senos_1wire_read,
     ._reset = &senos_1wire_reset,
-    ._scan = &senos_1wire_scan
 };
+static uint8_t transaction_buffer[32]; 
 
 void *senos_1wire_get_ctrl_handle(void) {
-    //printf("1wire bus_control.attach: %p\n", bus_control._attach);
-    //printf("1wire bus_control.deattach: %p\n", bus_control._deattach);
     return &bus_control;
 }
 
@@ -86,6 +99,7 @@ static esp_err_t senos_1wire_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t
     onewire_bus_rmt_obj_t *bus_rmt;
     onewire_bus_handle_t bus_handle = NULL;
     bool new_handle =false;
+    *handle = NULL;
     for(senos_1wire_device_t *device = device_list; device != NULL; device = device->next) {
         bus_rmt = __containerof(device->handle, onewire_bus_rmt_obj_t, base);
         if(bus_rmt->tx_channel->gpio_num == dev_cfg->dev_1wire.data_gpio) { 
@@ -138,12 +152,13 @@ static esp_err_t senos_1wire_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t
     };
     device_list = new_device;
     (*handle)->api = &new_device->base;
+    (*handle)->bus_type = SENOS_BUS_1WIRE;
     (*handle)->device_id = new_device->device_id;
-    printf("senos_1wire_attach new_device:%p, rmt_bus:%p, base_api:%p\n", new_device, new_device->handle, new_device->base);
     return ESP_OK;
 }
 
 static esp_err_t senos_1wire_deattach(senos_dev_handle_t handle) {
+    if(!handle) return ESP_ERR_INVALID_ARG;
     senos_1wire_device_t *device = device_list, *target = NULL;
     senos_1wire_device_t *req_device = __containerof(handle->api, senos_1wire_device_t, base);
     senos_1wire_device_id_t req_device_id = {.id = req_device->device_id};
@@ -152,13 +167,13 @@ static esp_err_t senos_1wire_deattach(senos_dev_handle_t handle) {
         target = device;
         device = device->next;
     }
-    printf("senos_1wire_deattach [%08lX] found:%p, requested:%p, targeted:%p\n", req_device_id.id, device, req_device, target);
-    if(!device) { 
-        printf(" [%08lX] Not found\n", req_device->device_id);
-        return ESP_ERR_NOT_FOUND;
-    }
+    //printf("senos_1wire_deattach [%08lX] found:%p, requested:%p, targeted:%p\n", req_device_id.id, device, req_device, target);
+    //if(!device) { 
+        //printf(" [%08lX] Not found\n", req_device->device_id);
+    //    return ESP_ERR_NOT_FOUND;
+    //}
     if(device != req_device) { 
-        printf(" [%08lX] Invalid handle %p <> %p\n",req_device->device_id, device, req_device);
+        //printf(" [%08lX] Invalid handle %p <> %p\n",req_device->device_id, device, req_device);
         return ESP_ERR_INVALID_ARG;
     }
     if(target) target->next = device->next;
@@ -167,11 +182,11 @@ static esp_err_t senos_1wire_deattach(senos_dev_handle_t handle) {
     for(device = device_list; device && !target; device = device->next) {
         if(device->handle == req_device->handle) {
             target = device;
-            printf("senos_1wire_deattach: 1Wire Bus %p is still active\n", device->handle);
+            //printf("senos_1wire_deattach: 1Wire Bus %p is still active\n", device->handle);
         }
     }
     if(!target) {
-        printf("senos_1wire_deattach: Delete %p 1Wire Bus\n", req_device->handle);
+        //printf("senos_1wire_deattach: Delete %p 1Wire Bus\n", req_device->handle);
         onewire_bus_del(req_device->handle);
         gpio_drv_free(req_device_id.gpio);
     }
@@ -181,25 +196,71 @@ static esp_err_t senos_1wire_deattach(senos_dev_handle_t handle) {
 
 
 static esp_err_t senos_1wire_read(senos_dev_transaction_t *transaction, void *handle) {
-    //printf("senos_1wire_read rd: %u, wr:%u, cmd:%04X, reg:%016llX\n", transaction->rdBytes, transaction->wrBytes, transaction->dev_cmd, transaction->dev_reg);
-    return ESP_OK;
+    senos_1wire_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base);
+    if(transaction->rdBytes == 0) return ESP_ERR_INVALID_SIZE;
+    if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
+    onewire_bus_reset(device->handle);
+    onewire_bus_write_bytes(device->handle, transaction_buffer, 9 + device->cmd_bytes + device->addr_bytes);
+    return onewire_bus_read_bytes(device->handle, transaction->data, transaction->rdBytes);
 }
 
 static esp_err_t senos_1wire_write(senos_dev_transaction_t *transaction, void *handle) {
-    return ESP_OK;
-}
-
-static esp_err_t senos_1wire_wr(senos_dev_transaction_t *transaction, void *handle) {
+    senos_1wire_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base);
+    if(!transaction->wrBytes && !device->addr_bytes && !device->cmd_bytes) return ESP_ERR_INVALID_SIZE;
+    if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
+    hdump(transaction_buffer,16);
+    onewire_bus_reset(device->handle);
+    onewire_bus_write_bytes(device->handle, transaction_buffer, 9 + device->cmd_bytes + device->addr_bytes + transaction->wrBytes);
     return ESP_OK;
 }
 
 static esp_err_t senos_1wire_reset(void *handle) {
+    senos_1wire_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base);
+    onewire_bus_reset(device->handle);
     return ESP_OK;
 }
 
-static esp_err_t senos_1wire_scan(senos_dev_transaction_t *transaction, void *handle) {
+static esp_err_t senos_1wire_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices) {
+    if(!dev_cfg || !list || !num_of_devices || !*num_of_devices) return ESP_ERR_INVALID_ARG;
+    esp_err_t err = ESP_OK;
+    bool new_handle = false;
+    onewire_bus_handle_t bus_handle = NULL;
+    //senos_1wire_device_t *device = NULL;
+    for(senos_1wire_device_t *target = device_list; target && !bus_handle; target = target->next) {
+        if(dev_cfg->dev_1wire.data_gpio == (uint8_t)( 0x7F & target->device_id)) { 
+            bus_handle = target->handle;
+        }
+    }
+    if(!bus_handle) {
+        if(!gpio_drv_reserve(dev_cfg->dev_1wire.data_gpio)) return ESP_ERR_INVALID_STATE;
+        onewire_bus_config_t bus_config = { .bus_gpio_num = dev_cfg->dev_1wire.data_gpio};
+        onewire_bus_rmt_config_t rmt_config = {.max_rx_bytes = 10};
+        if(ESP_OK != onewire_new_bus_rmt(&bus_config, &rmt_config, &bus_handle)) return ESP_ERR_NO_MEM;
+        new_handle = true;
+    }
+    size_t maxBytes = (sizeof(uint64_t) * *num_of_devices);
+    *num_of_devices = 0;
+    uint64_t *found = (uint64_t *)list;
+    onewire_device_iter_handle_t iterator = NULL;
+    onewire_device_t next;
+    if(ESP_OK == onewire_new_device_iter(bus_handle, &iterator)) {
+        do {
+            err = onewire_device_iter_get_next(iterator, &next);
+            if( ESP_OK == err ){
+                if( maxBytes > (found - (uint64_t *)list)) {
+                    *found = _swap_romcode(next.address);
+                    found++;
+                }
+                (*num_of_devices)++;
+            }
+        } while (ESP_ERR_NOT_FOUND != err);
+    }
+    if(new_handle) { 
+        onewire_bus_del(bus_handle);
+        gpio_drv_free(dev_cfg->dev_1wire.data_gpio);
+    }
     return ESP_OK;
-}
+} 
 
 /* Internal functions */
 
@@ -208,6 +269,23 @@ static senos_1wire_device_t *senos_1wire_find_device(uint32_t id) {
         if(device->device_id == id) return device;
     }
     return NULL;
+}
+
+static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, senos_1wire_device_t *handle) {
+    if((9 + handle->cmd_bytes + handle->addr_bytes + transaction->wrBytes) > 32) return ESP_ERR_INVALID_SIZE;
+    transaction_buffer[0] = ONEWIRE_CMD_MATCH_ROM;
+    *(uint64_t *)(&transaction_buffer[1]) = handle->address;
+    if(handle->cmd_bytes > 0) {
+        if(handle->cmd_bytes ==2) *((uint16_t *)&transaction_buffer[9]) = (uint16_t)( 0xFFFF & transaction->dev_cmd);
+        else transaction_buffer[9] = (uint8_t)( 0xFF & transaction->dev_cmd);
+    }
+    if(handle->addr_bytes > 0) {
+        memcpy(&transaction_buffer[9 + handle->cmd_bytes], &(transaction->dev_reg), handle->addr_bytes);
+    }
+    if(transaction->wrBytes > 0) {
+        memcpy(&transaction_buffer[9 + handle->cmd_bytes + handle->addr_bytes], transaction->data, transaction->wrBytes);
+    }
+    return ESP_OK;
 }
 
 static uint64_t _swap_romcode(uint64_t val)
