@@ -8,6 +8,7 @@
 #define _SENOS_BUS_DEVICES_H_
 
 #include <inttypes.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -87,6 +88,8 @@ typedef struct {
     esp_err_t (*_read)(senos_dev_transaction_t *transaction, void *handle);
     esp_err_t (*_write)(senos_dev_transaction_t *transaction, void *handle);
     esp_err_t (*_wr)(senos_dev_transaction_t *transaction, void *handle);
+    esp_err_t (*_desc)(void *handle, char *stats, size_t max_chars, bool type);
+    esp_err_t (*_stats)(void *handle, char *stats, size_t max_chars);
     esp_err_t (*_reset)(void *handle);
 } senos_drv_api;
 

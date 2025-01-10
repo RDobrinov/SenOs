@@ -9,8 +9,9 @@
 #include "senos_bus_drv_private_defs.h"
 #include "senos_i2c_cntr.h"
 #include "senos_1wire_cntr.h"
+#include "senos_spi_cntr.h"
 
-static void *(*senos_get_bus[3])(void) = {&senos_1wire_get_ctrl_handle, &senos_i2c_get_ctrl_handle, NULL};
+static void *(*senos_get_bus[3])(void) = {&senos_1wire_get_ctrl_handle, &senos_i2c_get_ctrl_handle, };
 
 esp_err_t senos_add_device(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle) {
     //handle = NULL;

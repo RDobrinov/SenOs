@@ -32,13 +32,13 @@ typedef struct {
 typedef senos_bus_drv *senos_bus_drv_t;
 
 typedef struct {
+    uint32_t snd;
+    uint32_t rcv;
     uint64_t timeouts:16;
     uint64_t crc_error:16;
     uint64_t other:16;
-    uint64_t spi_corr:4;
     uint64_t notused:12;
-    uint32_t snd;
-    uint32_t rcv;
+    uint64_t spi_reserved:4;
 } senos_device_stats_t;
 
 #ifdef __cplusplus
