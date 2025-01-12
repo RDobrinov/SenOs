@@ -53,10 +53,7 @@ static esp_err_t senos_spi_reset(void *handle);
 
 /** Internal helper functions */
 static senos_spi_device_t *senos_spi_find_device(uint32_t id);
-//static void senos_spi_release_master(i2c_master_bus_handle_t handle);
-static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, senos_spi_device_t *handle);
 
-//static senos_spibus_host_t spi_hosts[SPIBUS_HOST_MAX];    /*!< Available SPI Hosts status */
 static senos_spibus_host_t *spi_hosts;    /*!< Available SPI Hosts status */
 static senos_spi_device_t *device_list = NULL; /*!< Attached to bus devices */
 static senos_bus_drv bus_control = {._attach = &senos_spi_attach, ._deattach = &senos_spi_deattach, ._scanbus = &senos_spi_bus_scan}; /*!< Bus control pointers */
@@ -68,8 +65,6 @@ static senos_drv_api senos_spi_api = {
     ._stats = &senos_spi_stats,
     ._reset = &senos_spi_reset
 };  /*!< Sensor API */
-
-static uint8_t transaction_buffer[32];
 
 void spi_hex(const uint8_t *buf, size_t len) {
     if( !len ) return;
@@ -109,7 +104,7 @@ static esp_err_t senos_spi_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
             }
         }
     }
-    if(spibus_find_device(new_device_id.id)) return ESP_ERR_NOT_SUPPORTED;
+    if(senos_spi_find_device(new_device_id.id)) return ESP_ERR_NOT_SUPPORTED;
 
     uint64_t bus_pinmask = (
             BIT64(dev_cfg->dev_spi.mosi_gpio) | BIT64(dev_cfg->dev_spi.miso_gpio) | 
@@ -183,6 +178,7 @@ static esp_err_t senos_spi_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
     }
     new_device->device_id = new_device_id.id;
     new_device->stats = (senos_device_stats_t){};
+    new_device->stats.spi_reserved = ((dev_cfg->dev_spi.addr_bits + dev_cfg->dev_spi.cmd_bits) >> 3);
     new_device->next = device_list;
     new_device->base = &senos_spi_api;
 
@@ -210,8 +206,8 @@ static esp_err_t senos_spi_deattach(senos_dev_handle_t handle) {
     else device_list = device->next;
     ret = spi_bus_free(((senos_spi_device_id_t)device->device_id).host_id);
     if(ret == ESP_OK) {
-        gpio_drv_free_pins(((senos_spi_device_id_t)device->device_id).miso_gpio) | BIT64(((senos_spi_device_id_t)device->device_id).mosi_gpio) |
-            BIT64(((senos_spi_device_id_t)device->device_id).sclk_gpio) | BIT64(((senos_spi_device_id_t)device->device_id).cs_gpio);
+        gpio_drv_free_pins(BIT64(((senos_spi_device_id_t)device->device_id).miso_gpio) | BIT64(((senos_spi_device_id_t)device->device_id).mosi_gpio) |
+            BIT64(((senos_spi_device_id_t)device->device_id).sclk_gpio) | BIT64(((senos_spi_device_id_t)device->device_id).cs_gpio));
         for(int i = 0; i < SPIBUS_HOST_MAX; i++) {
             if(spi_hosts[i].host_id == ((senos_spi_device_id_t)device->device_id).host_id) {
                 spi_hosts[i].free = true;
@@ -230,24 +226,67 @@ static esp_err_t senos_spi_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, siz
 }
 
 static esp_err_t senos_spi_read(senos_dev_transaction_t *transaction, void *handle) {
-    esp_err_t err;
-    senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
+    esp_err_t err ;
     if(transaction->rdBytes == 0) return ESP_ERR_INVALID_SIZE;
-    if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
+    senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
+    spi_transaction_t spibus_execute = {
+        .addr = transaction->dev_reg,
+        .cmd = transaction->dev_cmd,
+        .rx_buffer = transaction->data,
+        .tx_buffer = NULL,
+    };
+    spibus_execute.rxlength = (transaction->rdBytes) << 3;
+    spibus_execute.length = spibus_execute.rxlength;
+    err = spi_device_polling_transmit(device->handle, &spibus_execute);
+    if(ESP_OK == err) {
+        device->stats.snd += device->stats.spi_reserved;
+        device->stats.rcv += transaction->rdBytes;
+    } else {
+        if(ESP_ERR_TIMEOUT == err) device->stats.timeouts++;
+        else device->stats.other++;
+    }
     return err;
 }
 
 static esp_err_t senos_spi_write(senos_dev_transaction_t *transaction, void *handle) {
     esp_err_t err;
+    if(transaction->wrBytes == 0) return ESP_ERR_INVALID_SIZE;
+    uint8_t *dma_buf = NULL;
     senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
+    spi_transaction_t spibus_execute = {
+        .addr = transaction->dev_reg,
+        .cmd = transaction->dev_cmd,
+        .rxlength = 0,
+        .length = (transaction->rdBytes) << 3,
+        .rx_buffer = NULL,
+        .tx_buffer = NULL,
+    };
+    if(transaction->wrBytes <= 4) {
+        spibus_execute.flags |= SPI_TRANS_USE_TXDATA;
+        *((uint32_t *)spibus_execute.tx_data) = *((uint32_t *)transaction->data);
+    } else {
+        dma_buf = heap_caps_aligned_calloc(4, 1, transaction->wrBytes, MALLOC_CAP_DMA);
+        if(!dma_buf) return ESP_ERR_NO_MEM;
+        spibus_execute.tx_buffer = dma_buf;
+        memcpy(dma_buf, transaction->data, transaction->wrBytes);
+    }
+    err = spi_device_polling_transmit(device->handle, &spibus_execute);
+    if(ESP_OK == err) {
+        device->stats.snd += (device->stats.spi_reserved + transaction->wrBytes);
+    } else {
+        if(ESP_ERR_TIMEOUT == err) device->stats.timeouts++;
+        else device->stats.other++;
+    }
+    if(dma_buf) heap_caps_free(dma_buf);
     return err;
 }
 
 static esp_err_t senos_spi_wr(senos_dev_transaction_t *transaction, void *handle) {
-    esp_err_t err;
+    return ESP_FAIL;
+    /*esp_err_t err;
     senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
     if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
-    return err;
+    return err;*/
 }
 
 static esp_err_t senos_spi_desc(void *handle, char *stats, size_t max_chars, bool type) {
@@ -290,20 +329,3 @@ static senos_spi_device_t *senos_spi_find_device(uint32_t id){
     return NULL;
 }
 
-static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, senos_spi_device_t *handle) {
-    /*
-    if((handle->cmd_bytes + handle->addr_bytes + transaction->wrBytes) > 32) return ESP_ERR_INVALID_SIZE;
-    if(handle->cmd_bytes > 0) {
-        if(handle->cmd_bytes ==2) *((uint16_t *)&transaction_buffer[0]) = (uint16_t)( 0xFFFF & transaction->dev_cmd);
-        else transaction_buffer[0] = (uint8_t)( 0xFF & transaction->dev_cmd);
-    }
-    if(handle->addr_bytes > 0) {
-        memcpy(&transaction_buffer[handle->cmd_bytes], &(transaction->dev_reg), handle->addr_bytes);
-    }
-    if(transaction->wrBytes > 0) {
-        memcpy(&transaction_buffer[handle->cmd_bytes + handle->addr_bytes], transaction->data, transaction->wrBytes);
-    }
-    i2c_hex(transaction_buffer, 32);
-    */
-    return ESP_OK;
-}

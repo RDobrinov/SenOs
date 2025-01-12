@@ -60,14 +60,15 @@ void app_main(void)
     senos_dev_transaction_t tt = {
         .data = i2c_data,
         .dev_reg = 0xF2,
-        .rdBytes = 26,
-        .wrBytes = 4
+        .rdBytes = 13,
+        .wrBytes = 0
     };
     //senos_remove_device(i2c[0]);
-    *(uint32_t *)i2c_data = 0x5AA53210UL;
-    (*(i2c[0]->api))->_write(&tt, i2c[0]);
+    //*(uint32_t *)i2c_data = 0x5AA53210UL;
+    //(*(i2c[0]->api))->_write(&tt, i2c[0]);
     *(uint32_t *)i2c_data = 0x01235678UL;
     (*(i2c[0]->api))->_read(&tt, i2c[0]);
+    hd(i2c_data, 32);
     char desc[128];
     char stats[128];
     (*(i2c[0]->api))->_desc(i2c[0], desc, 128, false);
@@ -76,7 +77,7 @@ void app_main(void)
     (*(i2c[0]->api))->_stats(i2c[0], stats, 128);
     printf("%s\n%s\n", desc, stats);
     //printf("i2c[0]:%p\n", i2c[0]);
-    
+    return;
     /** Dallas 1-Wire */
     senos_dev_cfg_t dev = {
         .bus_type = SENOS_BUS_1WIRE,
