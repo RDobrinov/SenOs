@@ -292,7 +292,7 @@ static esp_err_t senos_spi_wr(senos_dev_transaction_t *transaction, void *handle
 static esp_err_t senos_spi_desc(void *handle, char *stats, size_t max_chars, bool type) {
     if(max_chars < 34 || !stats) return ESP_ERR_INVALID_SIZE;
     senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
-    if(type) { //((senos_spi_device_id_t)device->device_id)
+    if(type) {
         snprintf(stats, max_chars, "ID %08lX on SPI%02d with CS IO%02u, MOSI IO%02u, MISO IO%02u, SCLK IO%02u", device->device_id,
         ((senos_spi_device_id_t)device->device_id).host_id, ((senos_spi_device_id_t)device->device_id).cs_gpio, 
         ((senos_spi_device_id_t)device->device_id).mosi_gpio, ((senos_spi_device_id_t)device->device_id).miso_gpio, 

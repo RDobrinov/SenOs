@@ -2,7 +2,7 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
 
-set(EXTRA_COMPONENT_DIRS "components/senos_bus_drv/controllers")
+set(EXTRA_COMPONENT_DIRS "components/senos_bus_drv/controllers" "components/senos_sensors/sensor_drivers")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(SenOS-base)

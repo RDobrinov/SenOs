@@ -37,8 +37,7 @@ void app_main(void)
             .addr_bytes = 1,
             .cmd_bytes = 0
         }
-    }; */
-
+    }; */ 
     senos_dev_cfg_t dv = {
         .bus_type = SENOS_BUS_I2C,
         .dev_i2c = {
