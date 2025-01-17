@@ -19,7 +19,7 @@ extern "C" {
 #include <stdbool.h>
 #include "esp_err.h"
 
-#include "senos_sensor_private.h"
+#include "senos_sensor_base.h"
 
 typedef struct {
     esp_err_t (*_add)(void *data, senos_sensor_api_t **handle);
