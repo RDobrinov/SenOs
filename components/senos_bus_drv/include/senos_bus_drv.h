@@ -9,8 +9,10 @@
 
 #include <inttypes.h>
 #include "esp_err.h"
+#include "driver/i2c_master.h"  //Are you sure???
 
 #include "senos_bus_devices.h"
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +26,7 @@ extern "C" {
  */
 esp_err_t senos_add_device(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
 esp_err_t senos_remove_device(senos_dev_handle_t handle);
+esp_err_t senos_probe_device(senos_dev_cfg_t *dev_cfg);
 esp_err_t senos_scan_bus(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices);
 
 #ifdef __cplusplus

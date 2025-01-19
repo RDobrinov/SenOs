@@ -22,7 +22,20 @@ extern "C" {
 #include "senos_sensor_base.h"
 
 typedef struct {
-    esp_err_t (*_add)(void *data, senos_sensor_api_t **handle);
+    esp_err_t (*_init)(void *handle);
+    esp_err_t (*_prepare)(void *handle);
+    esp_err_t (*_measure)(void *handle);
+    esp_err_t (*_read)(void *handle);
+    esp_err_t (*_get)(void *handle, senos_sensor_magnitude_t *magnitude, float *value);
+    esp_err_t (*_getcaps)(void *handle, senos_sensor_magnitude_t *magnitudes, size_t *len);
+    esp_err_t (*_config)(void *handle, senos_sensor_magnitude_t *magnitudes, size_t *len);
+    bool (*_ready)(void *handle);
+} senos_sensor_api;
+
+typedef senos_sensor_api *senos_sensor_handle_t;
+
+typedef struct {
+    esp_err_t (*_add)(senos_sensor_hw_conf_t *config, senos_sensor_handle_t *handle);
     esp_err_t (*_remove)(void *handle);
 } senos_sensor_interface;
 

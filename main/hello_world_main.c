@@ -14,6 +14,11 @@
 
 #include "senos_bus_drv.h"
 
+#include "senos_sensor_base.h"
+#include "senos_sensors.h"
+
+#include "esp_log.h"
+
 void hd(const uint8_t *buf, size_t len) {
     if( !len ) return;
     for(int i=0; i<len; i++) printf("%02X ", buf[i]);
@@ -38,6 +43,16 @@ void app_main(void)
             .cmd_bytes = 0
         }
     }; */ 
+    senos_dev_handle_t i2c[2];
+    senos_sensor_handle_t bme;
+
+    senos_sensor_hw_conf_t sc = {
+        .type = SENSOR_BMx280,
+        .bmx280 = {.scl = GPIO_NUM_26, .sda = GPIO_NUM_18, .spi3w = false}
+    };
+
+    return;
+
     senos_dev_cfg_t dv = {
         .bus_type = SENOS_BUS_I2C,
         .dev_i2c = {
@@ -46,15 +61,26 @@ void app_main(void)
             .dev_addr_length = I2C_ADDR_BIT_LEN_7,
             .scl_speed_hz = 400000U,
             .xfer_timeout_ms = 10,
-            .device_address = 0x76,
+            .device_address = 0x77,
             .disable_ack_check = false,
             .addr_bytes = 1,
             .cmd_bytes = 0
         }
     };
-    senos_dev_handle_t i2c[2]; 
+    if(ESP_OK == senos_probe_device(&dv)) ESP_LOGI("Not attached", "0x%02X OK", dv.dev_i2c.device_address);
+    else ESP_LOGE("Not attached", "0x%02X NOK", dv.dev_i2c.device_address);
+    dv.dev_i2c.device_address = 0x76;
+    if(ESP_OK == senos_probe_device(&dv)) ESP_LOGI("Not attached", "0x%02X OK", dv.dev_i2c.device_address);
+    else ESP_LOGE("Not attached", "0x%02X NOK", dv.dev_i2c.device_address);
+
     senos_add_device(&dv, &i2c[0]);
     printf("i2c[0]:%p->%p\n", i2c[0], i2c[0]->api);
+    if(ESP_OK == senos_probe_device(&dv)) ESP_LOGI("Attached", "0x%02X OK", dv.dev_i2c.device_address);
+    else ESP_LOGE("Attached", "0x%02X NOK", dv.dev_i2c.device_address);
+    dv.dev_i2c.scl_gpio = GPIO_NUM_22;
+    dv.dev_i2c.sda_gpio = GPIO_NUM_21;
+    if(ESP_OK == senos_probe_device(&dv)) ESP_LOGI("Not attached", "0x%02X OK", dv.dev_i2c.device_address);
+    else ESP_LOGE("Not attached", "0x%02X NOK", dv.dev_i2c.device_address);
     uint8_t i2c_data[32];
     senos_dev_transaction_t tt = {
         .data = i2c_data,
@@ -62,6 +88,7 @@ void app_main(void)
         .rdBytes = 13,
         .wrBytes = 0
     };
+    return;
     //senos_remove_device(i2c[0]);
     //*(uint32_t *)i2c_data = 0x5AA53210UL;
     //(*(i2c[0]->api))->_write(&tt, i2c[0]);

@@ -18,7 +18,7 @@ extern "C" {
  *
  * @return Handle to driver API
  */
-void *bmx280_get_driver(void);
+void *bmx280_get_interface(void);
 
 #ifdef __cplusplus
 }

@@ -12,7 +12,7 @@
 #include "senos_i2c_private.h"
 #include "idf_gpio_driver.h"
 
-#include "esp_err.h"
+#include "esp_log.h"
 
 /** Type of device list element for attached i2c devices */
 typedef struct senos_i2c_device {
@@ -31,7 +31,8 @@ typedef struct senos_i2c_device {
 
 
 static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
-static esp_err_t senos_i2c_deattach( senos_dev_handle_t handle);
+static esp_err_t senos_i2c_deattach(senos_dev_handle_t handle);
+static esp_err_t senos_i2c_probe(senos_dev_cfg_t *dev_cfg);
 static esp_err_t senos_i2c_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices);
 
 static esp_err_t senos_i2c_read(senos_dev_transaction_t *transaction, void *handle);
@@ -47,7 +48,7 @@ static void senos_i2c_release_master(i2c_master_bus_handle_t handle);
 static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, senos_i2c_device_t *handle);
 
 static senos_i2c_device_t *device_list = NULL;
-static senos_bus_drv bus_control = {._attach = &senos_i2c_attach, ._deattach = &senos_i2c_deattach, ._scanbus = &senos_i2c_bus_scan};
+static senos_bus_drv bus_control = {._attach = &senos_i2c_attach, ._deattach = &senos_i2c_deattach, ._probe = &senos_i2c_probe, ._scanbus = &senos_i2c_bus_scan};
 static senos_drv_api senos_i2c_api = {
     ._read = &senos_i2c_read,
     ._write = &senos_i2c_write,
@@ -93,7 +94,6 @@ static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
         };
         esp_err_t err = i2c_new_master_bus(&i2c_bus_config, &bus_handle);
         if(ESP_OK != err) {
-            //free(port_handle);
             gpio_drv_free_pins(pinmask);
             return err;
         }
@@ -120,7 +120,6 @@ static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
         senos_i2c_release_master(bus_handle);
         return err;
     }
-
     senos_i2c_device_t *new_device = (senos_i2c_device_t *)calloc(1, sizeof(senos_i2c_device_t));
     if(!new_device) {
         i2c_master_bus_rm_device(*new_device_handle);
@@ -140,7 +139,6 @@ static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
         .next = device_list
     };
     device_list = new_device; /* <- END Attach device */
-
     (*handle)->api = &new_device->base;
     (*handle)->bus_type = SENOS_BUS_I2C;
     (*handle)->device_id = new_device->device_id;
@@ -168,6 +166,38 @@ static esp_err_t senos_i2c_deattach( senos_dev_handle_t handle) {
     senos_i2c_release_master(master_handle);
     return ESP_OK;
 }
+
+static esp_err_t senos_i2c_probe(senos_dev_cfg_t *dev_cfg) {
+    if(dev_cfg->bus_type != SENOS_BUS_I2C) return ESP_ERR_NOT_FOUND;
+    esp_err_t err;
+    uint64_t pinmask = (BIT64(dev_cfg->dev_i2c.scl_gpio) | BIT64(dev_cfg->dev_i2c.sda_gpio));
+    i2c_master_bus_handle_t bus_handle = NULL;
+    for(senos_i2c_device_t *device = device_list; device != NULL && !bus_handle; device = device->next) {
+        if(device->handle->master_bus->base->scl_num == dev_cfg->dev_i2c.scl_gpio && device->handle->master_bus->base->sda_num == dev_cfg->dev_i2c.sda_gpio) 
+            bus_handle = device->handle->master_bus;
+    }
+    if(!bus_handle) {
+        if(!gpio_drv_reserve_pins(pinmask)) return ESP_ERR_NOT_FOUND;
+        i2c_master_bus_config_t i2c_bus_config = {
+            .clk_source = I2C_CLK_SRC_DEFAULT,
+            .i2c_port = -1,
+            .scl_io_num = dev_cfg->dev_i2c.scl_gpio,
+            .sda_io_num = dev_cfg->dev_i2c.sda_gpio, 
+            .glitch_ignore_cnt = 7,
+            .flags.enable_internal_pullup = true
+        };
+        err = i2c_new_master_bus(&i2c_bus_config, &bus_handle);
+        if(ESP_OK != err) {
+            //free(port_handle);
+            gpio_drv_free_pins(pinmask);
+            return err;
+        }
+    } /* <- I2C Controller acquisition */
+    err = i2c_master_probe(bus_handle, dev_cfg->dev_i2c.device_address, dev_cfg->dev_i2c.xfer_timeout_ms);
+    senos_i2c_release_master(bus_handle);
+    return err;
+}
+
 static esp_err_t senos_i2c_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices) {
     return ESP_OK;
 }
@@ -263,8 +293,9 @@ static senos_i2c_device_t *senos_i2c_find_device(uint32_t id){
 
 static void senos_i2c_release_master(i2c_master_bus_handle_t handle) {
     if(handle->device_list.slh_first) return;
+    uint64_t pinmask = (BIT64(handle->base->scl_num) | BIT64(handle->base->sda_num));
     if(ESP_OK == i2c_del_master_bus(handle)){
-        gpio_drv_free_pins( BIT64(handle->base->scl_num) | BIT64(handle->base->sda_num));
+        gpio_drv_free_pins(pinmask);
     } else {
         /* Error state - I2C Controller remains locked / unusable */
     }

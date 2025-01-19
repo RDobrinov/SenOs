@@ -43,10 +43,13 @@ typedef enum {
 } senos_magnitudes_t;
 
 typedef struct {
-    uint32_t magnitude_index:4;
-    uint32_t magnitude:8;
-    uint32_t decimals:4;
-    uint32_t reserved:16;
+    uint32_t magnitude_index:4; /*!< Magnitude index */
+    uint32_t magnitude:6;       /*!< Magnitude type */
+    uint32_t decimals:4;        /*!< Magnitide decimals */
+    uint32_t resolution:4;      /*!< Sensor resolution 1 low to 15 high. 0 means Auto/Default */
+    uint32_t iir_filter:1;      /*!< IIR Filter active */
+    uint32_t oversampling:3;    /*!< Oversampling 0=No oversampling/Magnitude disabled */
+    uint32_t reserved:10;
 } senos_sensor_magnitude_t;
 
 typedef struct {
@@ -57,8 +60,10 @@ typedef struct {
             gpio_num_t gpio;
         } ds18x20;
         struct {
-            uint32_t scl:16;
-            uint32_t sda:16;
+            uint32_t scl:8;
+            uint32_t sda:8;
+            uint32_t spi3w:1;
+            uint32_t reserved:15;
         } bmx280;
         struct {
             uint32_t mosi:8;
@@ -68,26 +73,6 @@ typedef struct {
         } max31865;
     };
 } senos_sensor_hw_conf_t;
-
-typedef struct {
-    uint32_t resolution:4;      /*!< Sensor resolution 1 low to 15 high. 0 means Auto/Default */
-    uint32_t iir_filter:1;      /*!< IIR Filter active */
-    uint32_t oversampling:3;    /*!< Oversampling 0=No oversampling */
-    uint32_t reserved:24;       /*!< Not used */
-} senos_sensor_base_conf_t;
-
-typedef struct {
-    esp_err_t (*_init)(void *handle);
-    esp_err_t (*_prepare)(void *handle);
-    esp_err_t (*_measure)(void *handle);
-    esp_err_t (*_read)(void *handle);
-    esp_err_t (*_get)(void *handle, senos_sensor_magnitude_t *magnitude, float *value);
-    esp_err_t (*_magnitudes)(void *handle, senos_sensor_magnitude_t *magnitudes, size_t *len);
-    esp_err_t (*_config)(void *handle, senos_sensor_base_conf_t *conf);
-    bool (*_ready)(void *handle);
-} senos_sensor_api;
-
-typedef senos_sensor_api *senos_sensor_api_t;
 
 #ifdef __cplusplus
 }
