@@ -141,7 +141,7 @@ static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
     device_list = new_device; /* <- END Attach device */
     (*handle)->api = &new_device->base;
     (*handle)->bus_type = SENOS_BUS_I2C;
-    (*handle)->device_id = new_device->device_id;
+    //(*handle)->device_id = new_device->device_id;
     printf("device:%p, handle:%p->%p\n", new_device, *handle, (*handle)->api);
     return ESP_OK;
 }

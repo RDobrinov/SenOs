@@ -157,7 +157,7 @@ static esp_err_t senos_1wire_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t
     device_list = new_device;
     (*handle)->api = &new_device->base;
     (*handle)->bus_type = SENOS_BUS_1WIRE;
-    (*handle)->device_id = new_device->device_id;
+    //(*handle)->device_id = new_device->device_id;
     return ESP_OK;
 }
 

@@ -184,7 +184,7 @@ static esp_err_t senos_spi_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
 
     (*handle)->api = &new_device->base;
     (*handle)->bus_type = SENOS_BUS_SPI;
-    (*handle)->device_id = new_device->device_id;
+    //(*handle)->device_id = new_device->device_id;
     /** */
     return ESP_OK;
 }

@@ -13,4 +13,6 @@ static void *(*senos_get_bus[4])(void) = {NULL, &bmx280_get_interface, NULL, NUL
 
 esp_err_t senos_sensor_add(senos_sensor_hw_conf_t *dv, senos_sensor_handle_t *handle) {
     senos_sensor_interface_t interface = (senos_sensor_interface_t)(*senos_get_bus[dv->type])();
+    if(!interface) return ESP_ERR_NOT_SUPPORTED;
+    return interface->_add(dv,handle);
 }

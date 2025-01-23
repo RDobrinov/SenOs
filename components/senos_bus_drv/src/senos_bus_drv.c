@@ -16,12 +16,13 @@ static void *(*senos_get_bus[3])(void) = {&senos_1wire_get_ctrl_handle, &senos_i
 esp_err_t senos_add_device(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle) {
     //handle = NULL;
     senos_bus_drv_t bus = (senos_bus_drv_t)(*senos_get_bus[dev_cfg->bus_type])();
-    if(!bus) return ESP_FAIL; 
+    if(!bus) return ESP_ERR_NOT_SUPPORTED; 
+    return bus->_attach(dev_cfg, handle);
     //senos_dev_handle_t new_device;
-    printf("\n *** handle %p *** \n\n", handle);
-    esp_err_t ret = bus->_attach(dev_cfg, handle);
+    //printf("\n *** handle %p *** \n\n", handle);
+    //esp_err_t ret = bus->_attach(dev_cfg, handle);
     //if( ESP_OK == ret) *handle = new_device;
-    return ret;
+    //return ret;
     /*
     //bus->_attach(dev_cfg, &(new_device->);
     //(*(new_device->base))->

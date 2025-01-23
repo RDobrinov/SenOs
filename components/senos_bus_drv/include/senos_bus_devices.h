@@ -96,7 +96,7 @@ typedef struct {
 typedef senos_drv_api *senos_drv_api_t;
 
 typedef struct {
-    uint32_t device_id;
+    //uint32_t device_id;
     senos_drv_bus_t bus_type;
     senos_drv_api_t *api;
 } senos_dev_handle;
