@@ -34,26 +34,6 @@ typedef enum {
     SENSOR_LAST
 } senos_known_sensors_t;
 
-typedef enum {
-    MAGNITUDE_NONE,
-    MAGNITUDE_TEMPERATURE,
-    MAGNITUDE_HUMIDITY,
-    MAGNITUDE_PRESSURE,
-    MAGNITUDE_LAST
-} senos_magnitudes_t;
-
-typedef struct {
-    uint32_t magnitude_index:4; /*!< Magnitude index */
-    uint32_t magnitude:6;       /*!< Magnitude type */
-    uint32_t decimals:4;        /*!< Magnitide decimals */
-    uint32_t resolution:4;      /*!< Sensor resolution 1 low to 15 high. 0 means Auto/Default */
-    uint32_t iir_filter:1;      /*!< IIR Filter active */
-    uint32_t oversampling:3;    /*!< Oversampling 0=No oversampling/Magnitude disabled */
-    uint32_t valid:1;           /*!< Data is valid */
-    uint32_t reserved:9;
-    float value;                /*!< Magnitude value */
-} senos_sensor_magnitude_t;
-
 typedef struct {
     senos_known_sensors_t type;
     union {

@@ -118,8 +118,13 @@ static esp_err_t bmx280_prepare(void *handle);
 static esp_err_t bmx280_measure(void *handle);
 static esp_err_t bmx280_read(void *handle);
 static esp_err_t bmx280_get(void *handle, senos_sensor_magnitude_t *magnitude, float *value);
-static esp_err_t bmx280_getcaps(void *handle, senos_sensor_magnitude_t *magnitudes, size_t *len);
-static esp_err_t bmx280_config(void *handle, senos_sensor_magnitude_t *magnitudes, size_t *len);
+static esp_err_t bmx280_getcaps(void *handle, senos_sensor_caps_t *caps);
+static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
+
+/**
+ * esp_err_t (*_getcaps)(void *handle, senos_sensor_caps_t *caps);
+    esp_err_t (*_config)(void *handle, senos_sensor_mag_caps_t *magnitudes);
+ */
 
 static senos_sensor_api bmx280_api = {
     ._init = &bmx280_init,
@@ -130,6 +135,8 @@ static senos_sensor_api bmx280_api = {
     ._getcaps = &bmx280_getcaps,
     ._config = &bmx280_config
 };
+
+static esp_err_t bmx_apply_config(bmx280_sensor_t *bmx);
 
 static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t *handle) {
     if(config->type != SENSOR_BMx280) return ESP_ERR_NOT_SUPPORTED;
@@ -170,9 +177,17 @@ static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_
     new_bmx->osrs_h = BMX280_MAGNITUDE_DISABLED;
     new_bmx->temperature = (senos_sensor_magnitude_t) {
         .decimals = 2,
-        .magnitude = MAGNITUDE_TEMPERATURE,
+        .sel_decimals = 2,
+        .type = MAGNITUDE_TEMPERATURE,
         .iir_filter = false,
-        .oversampling = BMX280_DEFAULT_OVERSAMPLING_TEMP 
+        .oversampling = BMX280_DEFAULT_OVERSAMPLING_TEMP,
+    };
+    new_bmx->pressure = (senos_sensor_magnitude_t) {
+        .decimals = 1,  //Точност под съмнение. !Направо нула! Компенсацията е в паскали ама едва ли някой го вълнува десети от хектопаскалите
+        .sel_decimals = 1,
+        .type = MAGNITUDE_PRESSURE,
+        .iir_filter = false,
+        .oversampling = BMX280_DEFAULT_OVERSAMPLING_PRES,
     };
     //new_bmx->osrs_h = (new_bmx->chip_id == BMX280_ID_BME280) ? BMX280_DEFAULT_OVERSAMPLING_HUMI : BMX280_MAGNITUDE_DISABLED;
     new_bmx->base = &bmx280_api;
@@ -216,6 +231,13 @@ static esp_err_t bmx280_init(void *handle) {
 
     if(bmx->chip_id == BMX280_ID_BME280) {
         bmx->osrs_h = BMX280_DEFAULT_OVERSAMPLING_HUMI;
+        bmx->humidity = (senos_sensor_magnitude_t) {
+            .decimals = 1, //Това също.
+            .sel_decimals = 1,
+            .type = MAGNITUDE_HUMIDITY,
+            .iir_filter = false,
+            .oversampling = BMX280_DEFAULT_OVERSAMPLING_PRES,
+        };
         init_tr.dev_reg = BMX280_REG_CALIB26;
         init_tr.rdBytes = BMX280_C26DATA_LENGTH;
         init_tr.data = &bmx->cal.H2;
@@ -231,25 +253,7 @@ static esp_err_t bmx280_init(void *handle) {
         bmx->cal.H4 = (bmx->cal.H4 & 0xFF) << 4 | (E5 & 0x0F);
         bmx->cal.H5 = (bmx->cal.H5 & 0xFF) << 4 | (E5 >> 4);
     }
-    init_tr.dev_reg = BMX280_REG_CTRLH;
-    init_tr.data = &bmx->reg_ctrl_humi;
-    //init_tr.rdBytes = 0;
-    init_tr.wrBytes = 1;
-    err = (*(bmx->handle->api))->_write(&init_tr, bmx->handle);
-    if(ESP_OK != err) goto config_error;
-    init_tr.dev_reg = BMX280_REG_CONFIG;
-    init_tr.data = &bmx->reg_config;
-    //init_tr.rdBytes = 0;
-    //init_tr.wrBytes = 1;
-    err = (*(bmx->handle->api))->_write(&init_tr, bmx->handle);
-    if(ESP_OK != err) goto config_error;
-
-    init_tr.dev_reg = BMX280_REG_CTRLMEAS;
-    init_tr.data = &bmx->reg_ctrl_meas;
-    //init_tr.rdBytes = 0;
-    //init_tr.wrBytes = 1;
-    err = (*(bmx->handle->api))->_write(&init_tr, bmx->handle);
-    if(ESP_OK != err) goto config_error;
+    if(bmx_apply_config(bmx)) goto config_error;
     return ESP_OK;
 
 config_error:
@@ -344,7 +348,7 @@ static esp_err_t bmx280_read(void *handle) {
                 bmx->pressure.value = ((uint32_t)(((v1 + v2 + v3) >> 8) + ((int64_t)bmx->cal.P7 << 4)) / 256.0);
                 bmx->pressure.valid = true;
             } else {
-                bmx->pressure.value = 30000.00;
+                bmx->pressure.value = 30000.0;
             }
         }
     }
@@ -355,11 +359,90 @@ static esp_err_t bmx280_get(void *handle, senos_sensor_magnitude_t *magnitude, f
     return ESP_OK;
 }
 
-static esp_err_t bmx280_getcaps(void *handle, senos_sensor_magnitude_t *magnitudes, size_t *len) {
+static esp_err_t bmx280_getcaps(void *handle, senos_sensor_caps_t *caps) {
+    esp_err_t err;
+    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t)handle , bmx280_sensor_t, base);
+    caps->mag_caps = NULL;
+    caps->warmup_time = 0;
+    caps->prepare_time = 0;
+    caps->cooldown_time = 0;
+    caps->measure_time = 2 + (bmx->osrs_t << 1) + (bmx->osrs_p << 1) + (bmx->osrs_h << 1);
+    if(caps->measure_time < 10) caps->measure_time = 10;
+    if(!bmx->osrs_t) return ESP_ERR_NOT_SUPPORTED;
+    senos_sensor_mag_caps_t *new_magnitude = (senos_sensor_caps_t *)calloc(1, sizeof(senos_sensor_caps_t));
+    if(!new_magnitude) goto nomem_error;
+    new_magnitude->magnitude = bmx->temperature;
+    new_magnitude->next = caps->mag_caps;
+    caps->mag_caps = new_magnitude;
+    new_magnitude = (senos_sensor_caps_t *)calloc(1, sizeof(senos_sensor_caps_t));
+    if(!new_magnitude) goto nomem_error;
+    new_magnitude->magnitude = bmx->pressure;
+    new_magnitude->next = caps->mag_caps;
+    caps->mag_caps = new_magnitude;
+    new_magnitude = (senos_sensor_caps_t *)calloc(1, sizeof(senos_sensor_caps_t));
+    if(!new_magnitude) goto nomem_error;
+    new_magnitude->magnitude = bmx->humidity;
+    new_magnitude->next = caps->mag_caps;
+    caps->mag_caps = new_magnitude;
     return ESP_OK;
+nomem_error:
+    while(caps->mag_caps) {
+        senos_sensor_mag_caps_t *next = caps->mag_caps;
+        free(caps->mag_caps);
+        caps->mag_caps = next;
+    }
 }
-static esp_err_t bmx280_config(void *handle, senos_sensor_magnitude_t *magnitudes, size_t *len) {
-    return ESP_OK;
+static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes) {
+    if(!magnitudes) return ESP_ERR_INVALID_ARG;
+    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t)handle , bmx280_sensor_t, base);
+    for(senos_sensor_mag_caps_t *mag = magnitudes; mag != NULL; mag = mag->next) {
+        switch (mag->magnitude.type)
+        {
+            case MAGNITUDE_TEMPERATURE:
+                bmx->temperature.sel_decimals = mag->magnitude.sel_decimals;
+                bmx->filter = mag->magnitude.iir_filter;
+                bmx->osrs_t = mag->magnitude.oversampling;
+                break;
+            
+            case MAGNITUDE_PRESSURE:
+                bmx->pressure.sel_decimals = mag->magnitude.sel_decimals;
+                bmx->osrs_p = mag->magnitude.oversampling;
+                break;
+
+            case MAGNITUDE_HUMIDITY:
+                if(bmx->chip_id == BMX280_ID_BME280) {
+                    bmx->humidity.sel_decimals = mag->magnitude.sel_decimals;
+                    bmx->osrs_h = mag->magnitude.oversampling;
+                }
+                break;
+
+            default:
+                break;
+        }
+    }
+    return bmx_apply_config(bmx);
+}
+
+static esp_err_t bmx_apply_config(bmx280_sensor_t *bmx) {
+    esp_err_t err;
+    senos_dev_transaction_t reg_tr = {
+        .dev_reg = BMX280_REG_CTRLH,
+        .data = &bmx->reg_ctrl_humi,
+        //init_tr.rdBytes = 0;
+        .wrBytes = 1
+    };
+    err = (*(bmx->handle->api))->_write(&reg_tr, bmx->handle);
+    if(ESP_OK != err) return err;
+
+    reg_tr.dev_reg = BMX280_REG_CONFIG;
+    reg_tr.data = &bmx->reg_config;
+    err = (*(bmx->handle->api))->_write(&reg_tr, bmx->handle);
+    if(ESP_OK != err) return err;
+
+    reg_tr.dev_reg = BMX280_REG_CTRLMEAS;
+    reg_tr.data = &bmx->reg_ctrl_meas;
+    err = (*(bmx->handle->api))->_write(&reg_tr, bmx->handle);
+    return err;
 }
 
 void *bmx280_get_interface(void) {

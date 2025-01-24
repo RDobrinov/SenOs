@@ -20,6 +20,20 @@ extern "C" {
 #include "esp_err.h"
 
 #include "senos_sensor_base.h"
+#include "senos_sensor_magnitudes.h"
+
+typedef struct senos_sensor_mag_caps {
+    senos_sensor_magnitude_t magnitude;
+    struct senos_sensor_mag_caps *next;
+} senos_sensor_mag_caps_t;
+
+typedef struct {
+    senos_sensor_mag_caps_t *mag_caps;
+    uint32_t warmup_time;
+    uint32_t prepare_time;
+    uint32_t measure_time;
+    uint32_t cooldown_time;
+} senos_sensor_caps_t;
 
 typedef struct {
     esp_err_t (*_init)(void *handle);
@@ -27,8 +41,8 @@ typedef struct {
     esp_err_t (*_measure)(void *handle);
     esp_err_t (*_read)(void *handle);
     esp_err_t (*_get)(void *handle, senos_sensor_magnitude_t *magnitude, float *value);
-    esp_err_t (*_getcaps)(void *handle, senos_sensor_magnitude_t *magnitudes, size_t *len);
-    esp_err_t (*_config)(void *handle, senos_sensor_magnitude_t *magnitudes, size_t *len);
+    esp_err_t (*_getcaps)(void *handle, senos_sensor_caps_t *caps);
+    esp_err_t (*_config)(void *handle, senos_sensor_mag_caps_t *magnitudes);
     bool (*_ready)(void *handle);
 } senos_sensor_api;
 
