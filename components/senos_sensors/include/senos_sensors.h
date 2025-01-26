@@ -11,12 +11,13 @@
 #include "esp_err.h"
 
 #include "senos_sensor_base.h"
+#include "senos_sensor_private.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-esp_err_t senos_sensor_add(senos_sensor_hw_conf_t *dv);
+esp_err_t senos_sensor_add(senos_sensor_hw_conf_t *dv, senos_sensor_handle_t **handle);
 
 #ifdef __cplusplus
 }

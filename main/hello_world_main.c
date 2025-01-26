@@ -14,7 +14,9 @@
 
 #include "senos_bus_drv.h"
 
-#include "senos_sensor_base.h"
+//#include "senos_sensor_base.h"
+//#include "senos_sensor_magnitudes.h"
+//#include "senos_sensor_private.h"
 #include "senos_sensors.h"
 
 #include "esp_log.h"
@@ -44,13 +46,18 @@ void app_main(void)
         }
     }; */ 
     senos_dev_handle_t i2c[2];
-    senos_sensor_handle_t bme;
+    senos_sensor_handle_t *bme;
 
     senos_sensor_hw_conf_t sc = {
         .type = SENSOR_BMx280,
         .bmx280 = {.scl = GPIO_NUM_26, .sda = GPIO_NUM_18, .spi3w = false}
     };
-
+    printf("ERROR: %d\n", senos_sensor_add(&sc, &bme));
+    printf("bme ptr %p\n", bme);
+    (*bme)->_init(bme);
+    (*bme)->_measure(bme);
+    vTaskDelay(100);
+    (*bme)->_read(bme);
     return;
 
     senos_dev_cfg_t dv = {

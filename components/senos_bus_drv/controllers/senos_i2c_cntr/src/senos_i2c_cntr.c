@@ -61,6 +61,7 @@ static senos_drv_api senos_i2c_api = {
 static uint8_t transaction_buffer[32];
 
 void i2c_hex(const uint8_t *buf, size_t len) {
+    return; //BLOCKED
     if( !len ) return;
     //ESP_LOGI("hexdump", "%p", buf);
     printf("i2c_hex: [%p] ", buf);
@@ -208,7 +209,7 @@ static esp_err_t senos_i2c_read(senos_dev_transaction_t *transaction, void *hand
     if(transaction->rdBytes == 0) return ESP_ERR_INVALID_SIZE;
     if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
     size_t command_len = device->cmd_bytes + device->addr_bytes;
-    //printf("senos_i2c_read command_len:%d, transaction->rdBytes:%d\n", command_len, transaction->rdBytes);
+    printf("senos_i2c_read command_len:%d, transaction->rdBytes:%d\n", command_len, transaction->rdBytes);
     if(command_len > 0) {
         err = i2c_master_transmit_receive(device->handle, transaction_buffer, command_len, transaction->data, transaction->rdBytes, device->xfer_timeout_ms);
         if(ESP_OK == err) device->stats.snd += command_len;

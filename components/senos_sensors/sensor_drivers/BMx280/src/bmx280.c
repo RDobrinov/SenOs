@@ -34,6 +34,8 @@
 #define BMX280_MODE_SLEEP 0x00
 #define BMX280_MODE_FORCED 0x02
 
+#define BMX280_MAX_DECIMALS MAGNITUDE_MAX_DECIMALS  /*!< Maximum BMX sensor driver decimals */
+
 /**
  * Values in Q24.8 format.
  */
@@ -43,6 +45,7 @@
 typedef struct {
     senos_dev_handle_t handle;
     senos_sensor_handle_t base;
+    //senos_sensor_api base;
     struct {
         /** ctrl_hum 0xD0 */
         union {
@@ -108,16 +111,23 @@ typedef struct {
     senos_sensor_magnitude_t humidity;
 } bmx280_sensor_t;
 
-static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t *handle);
+void bmx_hd(const uint8_t *buf, size_t len) {
+    if( !len ) return;
+    for(int i=0; i<len; i++) printf("%02X ", buf[i]);
+    printf("\n");
+    return;
+}
+
+static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t **handle);
 static esp_err_t bmx280_remove(void *handle);
 
-static const senos_sensor_interface bme280_interface = { ._add = &bmx280_add, ._remove = &bmx280_remove};
+static const senos_sensor_interface bmx280_interface = { ._add = &bmx280_add, ._remove = &bmx280_remove};
 
 static esp_err_t bmx280_init(void *handle);
 static esp_err_t bmx280_prepare(void *handle);
 static esp_err_t bmx280_measure(void *handle);
 static esp_err_t bmx280_read(void *handle);
-static esp_err_t bmx280_get(void *handle, senos_sensor_magnitude_t *magnitude, float *value);
+static esp_err_t bmx280_get(void *handle, senos_sensor_mag_caps_t *magnitudes);
 static esp_err_t bmx280_getcaps(void *handle, senos_sensor_caps_t *caps);
 static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
 
@@ -129,7 +139,7 @@ static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes
 static senos_sensor_api bmx280_api = {
     ._init = &bmx280_init,
     ._prepare = &bmx280_prepare,
-    ._measure = &bmx280_prepare,
+    ._measure = &bmx280_measure,
     ._read = &bmx280_read,
     ._get = &bmx280_get,
     ._getcaps = &bmx280_getcaps,
@@ -138,8 +148,9 @@ static senos_sensor_api bmx280_api = {
 
 static esp_err_t bmx_apply_config(bmx280_sensor_t *bmx);
 
-static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t *handle) {
+static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t **handle) {
     if(config->type != SENSOR_BMx280) return ESP_ERR_NOT_SUPPORTED;
+    *handle = NULL;
     //new_bmx->base = &bmx280_api;
     esp_err_t err;
     senos_dev_cfg_t dev_cfg = {
@@ -157,11 +168,15 @@ static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_
         }
     };
     if(ESP_OK != senos_probe_device(&dev_cfg)) {
+        printf("probe 0x76\n");
         dev_cfg.dev_i2c.device_address = 0x77;
+        printf("probe 0x76\n");
         if(ESP_OK != senos_probe_device(&dev_cfg)) return ESP_ERR_NOT_FOUND;
     }
+    printf("OK\n");
     bmx280_sensor_t *new_bmx = (bmx280_sensor_t *)calloc(1,sizeof(bmx280_sensor_t));
     if(!new_bmx) return ESP_ERR_NO_MEM;
+    printf("new_bmx %p\n", new_bmx);
     err = senos_add_device(&dev_cfg, &new_bmx->handle);
     if(ESP_OK != err) {
         free(new_bmx);
@@ -176,23 +191,24 @@ static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_
     new_bmx->osrs_p = BMX280_DEFAULT_OVERSAMPLING_PRES;
     new_bmx->osrs_h = BMX280_MAGNITUDE_DISABLED;
     new_bmx->temperature = (senos_sensor_magnitude_t) {
-        .decimals = 2,
-        .sel_decimals = 2,
+        .decimals = BMX280_MAX_DECIMALS,
         .type = MAGNITUDE_TEMPERATURE,
+        .metric = METRIC_DEGREES,
         .iir_filter = false,
         .oversampling = BMX280_DEFAULT_OVERSAMPLING_TEMP,
     };
     new_bmx->pressure = (senos_sensor_magnitude_t) {
-        .decimals = 1,  //Точност под съмнение. !Направо нула! Компенсацията е в паскали ама едва ли някой го вълнува десети от хектопаскалите
-        .sel_decimals = 1,
+        .decimals = BMX280_MAX_DECIMALS,  //Точност под съмнение. !Направо нула! Компенсацията е в паскали ама едва ли някой го вълнува десети от хектопаскалите
         .type = MAGNITUDE_PRESSURE,
+        .metric = METRIC_HECTOPASCSAL,
         .iir_filter = false,
         .oversampling = BMX280_DEFAULT_OVERSAMPLING_PRES,
     };
     //new_bmx->osrs_h = (new_bmx->chip_id == BMX280_ID_BME280) ? BMX280_DEFAULT_OVERSAMPLING_HUMI : BMX280_MAGNITUDE_DISABLED;
     new_bmx->base = &bmx280_api;
     //(*(senos_sensor_handle_t *)handle) = &new_bmx->base;
-    *handle = &new_bmx->base;
+    (*handle) = &new_bmx->base;
+    printf("END\n");
     return ESP_OK;
 }
 
@@ -202,7 +218,9 @@ static esp_err_t bmx280_remove(void *handle) {
 
 /** Communication API */
 static esp_err_t bmx280_init(void *handle) {
-    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t)handle , bmx280_sensor_t, base);
+    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
+    printf("_init *bmx %p\n", bmx);
+
     if(bmx->chip_id != 0) return ESP_OK;
     //senos_sensor_api *api = *((senos_sensor_handle_t *)handle);
     //uint8_t reg_value;
@@ -214,34 +232,47 @@ static esp_err_t bmx280_init(void *handle) {
         .rdBytes = 1
     };
     err = (*(bmx->handle->api))->_read(&init_tr, bmx->handle);
+    printf("_init error: %d, %02X\n", err, bmx->reg_chipid);
     if(ESP_OK != err) {
         return ESP_ERR_NOT_SUPPORTED;
     }
     //bmx->chip_id = bmx->reg_chipid & 0x7f;
-    if(bmx->chip_id != BMX280_ID_BMP280 || bmx->chip_id != BMX280_ID_BME280) {
+    if(bmx->chip_id != BMX280_ID_BMP280 && bmx->chip_id != BMX280_ID_BME280) {
         bmx->chip_id = 0;
         return ESP_ERR_NOT_SUPPORTED;
     }
-    
+    printf("ID OK\n");
     init_tr.dev_reg = BMX280_REG_CALIB00;
     init_tr.rdBytes = BMX280_C00DATA_LENGTH;
-    init_tr.data = &bmx->cal;
-    err = (*(bmx->handle->api))->_read(&init_tr, bmx->handle); 
+    //init_tr.data = (uint8_t *)&bmx->cal;
+    init_tr.data = (uint8_t *)&bmx->cal.T1;
+    printf("Pointers %p, %p, %p\n", init_tr.data, &bmx->cal.T1, &bmx->cal);
+    err = (*(bmx->handle->api))->_read(&init_tr, bmx->handle);
+    /** Testing */
+    //uint8_t *buf = (uint8_t *)&bmx->cal.T1;
+    printf("%x,%x,%x,%x\n",init_tr.data[1], init_tr.data[0], init_tr.data[3], init_tr.data[4]);
+    uint16_t T1 = (uint16_t)(((uint16_t)init_tr.data[1] << 8) | (uint16_t)init_tr.data[0]);
+    int16_t T2 = (int16_t)(((uint16_t)init_tr.data[3] << 8) | ((uint16_t)init_tr.data[2]));
+    /** */
+    //bmx_hd((uint8_t *)&bmx->cal, BMX280_C00DATA_LENGTH);
+    bmx_hd((uint8_t *)&bmx->cal.T1, BMX280_C00DATA_LENGTH);
+    printf("[%u, %d] %u, %d\n", bmx->cal.T1, bmx->cal.T2, T1, T2);
     if(ESP_OK != err) goto config_error;
 
     if(bmx->chip_id == BMX280_ID_BME280) {
         bmx->osrs_h = BMX280_DEFAULT_OVERSAMPLING_HUMI;
         bmx->humidity = (senos_sensor_magnitude_t) {
-            .decimals = 1, //Това също.
-            .sel_decimals = 1,
+            .decimals = BMX280_MAX_DECIMALS, //Това също.
             .type = MAGNITUDE_HUMIDITY,
+            .metric = METRIC_PRECENTAGE,
             .iir_filter = false,
             .oversampling = BMX280_DEFAULT_OVERSAMPLING_PRES,
         };
         init_tr.dev_reg = BMX280_REG_CALIB26;
         init_tr.rdBytes = BMX280_C26DATA_LENGTH;
-        init_tr.data = &bmx->cal.H2;
+        init_tr.data = (uint8_t *)&bmx->cal.H2;
         err = (*(bmx->handle->api))->_read(&init_tr, bmx->handle);
+        bmx_hd((uint8_t *)&bmx->cal.H2, BMX280_C26DATA_LENGTH);
         if(ESP_OK != err) goto config_error;
         /*uint8_t E5 = (new_bmx->cal.H4 & 0xFF00) >> 8;
         new_bmx->cal.H6 = (new_bmx->cal.H5 & 0xFF00) >> 8;
@@ -252,8 +283,10 @@ static esp_err_t bmx280_init(void *handle) {
         bmx->cal.H6 = bmx->cal.H5 >> 8;
         bmx->cal.H4 = (bmx->cal.H4 & 0xFF) << 4 | (E5 & 0x0F);
         bmx->cal.H5 = (bmx->cal.H5 & 0xFF) << 4 | (E5 >> 4);
+        printf("\n%u, %d, %u, %d, %d, %d\n\n", bmx->cal.H1, bmx->cal.H2, bmx->cal.H3, bmx->cal.H4, bmx->cal.H5, bmx->cal.H6);
     }
     if(bmx_apply_config(bmx)) goto config_error;
+    bmx_hd((uint8_t *)bmx, sizeof(bmx280_sensor_t));
     return ESP_OK;
 
 config_error:
@@ -267,7 +300,7 @@ static esp_err_t bmx280_prepare(void *handle) {
 
 static esp_err_t bmx280_measure(void *handle) {
     esp_err_t err;
-    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t)handle , bmx280_sensor_t, base);
+    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
     bmx->mode = BMX280_MODE_FORCED;
     senos_dev_transaction_t transaction = {
         .data = &bmx->reg_ctrl_meas,
@@ -284,7 +317,7 @@ static esp_err_t bmx280_read(void *handle) {
     uint8_t data[8];
     uint32_t adc_value;
     int32_t fine_t, c1, c2, c3, c4, c5;
-    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t)handle , bmx280_sensor_t, base);
+    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
     bmx->temperature.valid = false;
     bmx->pressure.valid = false;
     bmx->humidity.valid = false;
@@ -299,69 +332,111 @@ static esp_err_t bmx280_read(void *handle) {
     /** Temperature in Degrees C
      * 2233 represents 22.33 DegC
     */
+    bmx_hd(data, 8);
     if(bmx->osrs_t) {
         adc_value = ((uint32_t)data[3] << 12) | ((uint32_t)data[4] << 4) | ((uint32_t)data[5] >> 4);
-        c1 = (int32_t)( (adc_value >> 3) - ((int32_t)bmx->cal.T1 << 2));
+        printf("adc_value_t %lu\n", adc_value);
+        c1 = (int32_t)( (adc_value >> 3) - ((int32_t)bmx->cal.T1 << 1));
         c1 = (c1 * (int32_t)bmx->cal.T2) >> 11;
         c2 = (int32_t)(adc_value >> 4) - (int32_t)bmx->cal.T1;
         c2 = (((c2 * c2) >> 12) * (int32_t)bmx->cal.T3) >> 14;
         fine_t = c1 + c2;
-        bmx->temperature.value = ((fine_t * 5 + 128) >> 8) / 100;   /* Това определя двата разряда и на практика изрязва цифри след десетичната точка */
+        bmx->temperature.value = (uint32_t)(fine_t * 5 + 128);  //Q24.8 (by 256) but already multiple by 100 i.e. 2 decimals
         bmx->temperature.valid = true;
-        /** Realtive Humidity in % Q22.1 format 
+        /** Realtive Humidity in % Q22.10 format 
          * 57000 represents 57000/1024 55.66 %RH
         */
         if(bmx->osrs_h) {
             adc_value = ((uint32_t)data[6] << 8) | (uint32_t)data[7];
-            c1 = fine_t - 76800L;
+            printf("adc_value_h %lu\n", adc_value);
+            c1 = fine_t - (int32_t)76800;
             c2 = (int32_t)(adc_value << 14);
             c3 = (int32_t)((int32_t)bmx->cal.H4 << 20);
-            c4 = c1 * (int32_t)bmx->cal.H5;
-            c5 = (16384L + c2 - c3 - c4) >> 15;
+            c4 = (int32_t)bmx->cal.H5 * c1;
+            c5 = ((int32_t)16384 + c2 - c3 - c4) >> 15;
             c2 = (c1 * (int32_t)bmx->cal.H6) >> 10;
             c3 = (c1 * (int32_t)bmx->cal.H3) >> 11;
-            c4 = (((32768L + c2) * c2) >> 10) + 2097152L;
+            //c4 = (((32768L + c2) * c2) >> 10) + 2097152L;
+            c4 = ((((int32_t)32768 + c3) * c2) >> 10) + (int32_t)2097152;
             c2 = (8192L + (c4 * (int32_t)bmx->cal.H2)) >> 14;
             c3 = c5 * c2;
             c4 = ((c3 >> 15) * (c3 >> 15)) >> 7;
             c5 = c3 - ((c4 * (int32_t)bmx->cal.H1) >> 4);
-            bmx->humidity.value = ((uint32_t)(c5 < 0 ? 0 : (c5 > 419430400 ? 419430400 : c5)) >> 12) / 1024.0;
+            //bmx->humidity.value = (uint32_t)(c5 < 0 ? 0 : (c5 > 102400 ? 102400 : c5)); //Q22.10 by 1024
+            bmx->humidity.value = (uint32_t)((c5 < 0 ? 0 : (c5 > 419430400 ? 419430400 : c5)) >> 12); //Q22.10 by 1024
             bmx->humidity.valid = true;
         }
         /** Pressure in Pa Q24.8 format 
          * 26086400 represents 26086400/256 101900Pa 1019hPa
         */
+        /* from datasheet */
+        //v_x1_u32r = (((((adc_H << 14) - (((BME280_S32_t)dig_H4) << 20) - (((BME280_S32_t)dig_H5) * v_x1_u32r)) + ((BME280_S32_t)16384)) >> 15) * (((((((v_x1_u32r * 
+        //((BME280_S32_t)dig_H6)) >> 10) * (((v_x1_u32r * ((BME280_S32_t)dig_H3)) >> 11) + ((BME280_S32_t)32768))) >> 10) + ((BME280_S32_t)2097152)) * ((BME280_S32_t)dig_H2) + 
+        //8192) >> 14));
+        //v_x1_u32r = (v_x1_u32r – (((((v_x1_u32r >> 15) * (v_x1_u32r >> 15)) >> 7) * ((BME280_S32_t)dig_H1)) >> 4)); 
+        //v_x1_u32r = (v_x1_u32r < 0 ? 0 : v_x1_u32r);  
+        //v_x1_u32r = (v_x1_u32r > 419430400 ? 419430400 : v_x1_u32r); 
         if(bmx->osrs_p) {
             int64_t v1, v2, v3;
             adc_value = ((uint32_t)data[0] << 12) | ((uint32_t)data[1] << 4) | ((uint32_t)data[2] >> 4);
-            v1 = (int64_t)fine_t - 128000LL;
+            printf("adc_value_p %lu\n", adc_value);
+            v1 = ((int64_t)fine_t) - 128000;
             v2 = v1 * v1 * (int64_t)bmx->cal.P6;
             v2 += ((v1 * (int64_t)bmx->cal.P5) << 17);
             v2 += ((int64_t)bmx->cal.P4 << 35);
-            v1 = ((v1 * v1 * (int64_t)bmx->cal.P3) >> 8) + ((v1 * ((int64_t)bmx->cal.P2) << 12));
-            v1 = (140737488355328LL + v1) * ((int64_t)bmx->cal.P1) >> 33;
-            if(v1) {
-                v3 = 1048576 - adc_value;
+            v1 = ((v1 * v1 * (int64_t)bmx->cal.P3) >> 8) + ((v1 * (int64_t)bmx->cal.P2) << 12);
+            v1 = (v1 + ((int64_t)140737488355328)) * ((int64_t)bmx->cal.P1) >> 33;
+            if(v1 != 0) {
+                v3 = 1048576 - (int32_t)adc_value;
                 v3 = (3125 * ((v3 << 31) - v2)) / v1;
-                v1 = ((int64_t)bmx->cal.P9 * (v3 >> 8) * (v3 >> 8)) >> 25;
+                //v1 = ((int64_t)bmx->cal.P9 * (v3 >> 8) * (v3 >> 8)) >> 25;
+                v1 = ((int64_t)bmx->cal.P9 * (v3 >> 13) * (v3 >> 13)) >> 25;
                 v2 = ((int64_t)bmx->cal.P8 * v3) >> 19;
-                bmx->pressure.value = ((uint32_t)(((v1 + v2 + v3) >> 8) + ((int64_t)bmx->cal.P7 << 4)) / 256.0);
+                bmx->pressure.value = (uint32_t)(((v1 + v2 + v3) >> 8) + ((int64_t)bmx->cal.P7 << 4)); //Q24.8 (by 256) in Pascals. Decimal precision in hPa
                 bmx->pressure.valid = true;
             } else {
-                bmx->pressure.value = 30000.0;
+                bmx->pressure.value = 7680000;
             }
+        }
+    }
+    printf("Magnitudes %08lX, %08lX, %08lX\n", bmx->temperature.value, bmx->pressure.value, bmx->humidity.value);
+    printf("Magnitudes %f, %f, %f\n", ((int32_t)bmx->temperature.value >> 8)/100.0, bmx->pressure.value/256.0, (bmx->humidity.value)/1024.0);
+    return ESP_OK;
+}
+
+static esp_err_t bmx280_get(void *handle, senos_sensor_mag_caps_t *magnitudes) {
+    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
+    for(senos_sensor_mag_caps_t *mag = magnitudes; mag != NULL; mag = mag->next) {
+        mag->magnitude = (senos_sensor_magnitude_t){.type = mag->magnitude.type};
+        switch (mag->magnitude.type) {
+            case MAGNITUDE_TEMPERATURE:
+                /** Transfer two LSB ow magnitude bmx structure to two LSB in result linked magnitudes list 
+                 * This will transfer type, metric, decimals and valid flag to result structure
+                */
+                *((uint32_t *)&mag->magnitude) = *((uint32_t *)&bmx->temperature) & 0x0000FFFFLU;
+                mag->magnitude.value = (uint32_t)(((int32_t)((float)((int32_t)bmx->temperature.value / 256.0) * 100)) / 
+                    senos_sensor_magnitude_devider[(MAGNITUDE_MAX_DECIMALS - bmx->temperature.decimals)]);
+                break;
+            case MAGNITUDE_PRESSURE:
+                *((uint32_t *)&mag->magnitude) = *((uint32_t *)&bmx->pressure) & 0x0000FFFFLU;
+                mag->magnitude.value = (uint32_t)(((int32_t)((float)((int32_t)bmx->pressure.value / 256.0) * 100)) / 
+                    senos_sensor_magnitude_devider[(MAGNITUDE_MAX_DECIMALS - bmx->pressure.decimals)]);
+                break;
+            case MAGNITUDE_HUMIDITY:
+                *((uint32_t *)&mag->magnitude) = *((uint32_t *)&bmx->humidity) & 0x0000FFFFLU;
+                mag->magnitude.value = (uint32_t)(((int32_t)((float)((int32_t)bmx->humidity.value / 1024.0) * 100)) / 
+                    senos_sensor_magnitude_devider[(MAGNITUDE_MAX_DECIMALS - bmx->humidity.decimals)]);
+                break;
+            default:
+                break;
         }
     }
     return ESP_OK;
 }
 
-static esp_err_t bmx280_get(void *handle, senos_sensor_magnitude_t *magnitude, float *value) {
-    return ESP_OK;
-}
-
 static esp_err_t bmx280_getcaps(void *handle, senos_sensor_caps_t *caps) {
-    esp_err_t err;
-    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t)handle , bmx280_sensor_t, base);
+    //esp_err_t err;
+    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
     caps->mag_caps = NULL;
     caps->warmup_time = 0;
     caps->prepare_time = 0;
@@ -369,19 +444,22 @@ static esp_err_t bmx280_getcaps(void *handle, senos_sensor_caps_t *caps) {
     caps->measure_time = 2 + (bmx->osrs_t << 1) + (bmx->osrs_p << 1) + (bmx->osrs_h << 1);
     if(caps->measure_time < 10) caps->measure_time = 10;
     if(!bmx->osrs_t) return ESP_ERR_NOT_SUPPORTED;
-    senos_sensor_mag_caps_t *new_magnitude = (senos_sensor_caps_t *)calloc(1, sizeof(senos_sensor_caps_t));
+    senos_sensor_mag_caps_t *new_magnitude = (senos_sensor_mag_caps_t *)calloc(1, sizeof(senos_sensor_mag_caps_t));
     if(!new_magnitude) goto nomem_error;
     new_magnitude->magnitude = bmx->temperature;
+    new_magnitude->magnitude.decimals = BMX280_MAX_DECIMALS;
     new_magnitude->next = caps->mag_caps;
     caps->mag_caps = new_magnitude;
-    new_magnitude = (senos_sensor_caps_t *)calloc(1, sizeof(senos_sensor_caps_t));
+    new_magnitude = (senos_sensor_mag_caps_t *)calloc(1, sizeof(senos_sensor_mag_caps_t));
     if(!new_magnitude) goto nomem_error;
     new_magnitude->magnitude = bmx->pressure;
+    new_magnitude->magnitude.decimals = BMX280_MAX_DECIMALS;
     new_magnitude->next = caps->mag_caps;
     caps->mag_caps = new_magnitude;
-    new_magnitude = (senos_sensor_caps_t *)calloc(1, sizeof(senos_sensor_caps_t));
+    new_magnitude = (senos_sensor_mag_caps_t *)calloc(1, sizeof(senos_sensor_mag_caps_t));
     if(!new_magnitude) goto nomem_error;
     new_magnitude->magnitude = bmx->humidity;
+    new_magnitude->magnitude.decimals = BMX280_MAX_DECIMALS;
     new_magnitude->next = caps->mag_caps;
     caps->mag_caps = new_magnitude;
     return ESP_OK;
@@ -391,27 +469,28 @@ nomem_error:
         free(caps->mag_caps);
         caps->mag_caps = next;
     }
+    return ESP_ERR_NO_MEM;
 }
 static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes) {
     if(!magnitudes) return ESP_ERR_INVALID_ARG;
-    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t)handle , bmx280_sensor_t, base);
+    bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
     for(senos_sensor_mag_caps_t *mag = magnitudes; mag != NULL; mag = mag->next) {
-        switch (mag->magnitude.type)
-        {
+        if(mag->magnitude.decimals > BMX280_MAX_DECIMALS) mag->magnitude.decimals = BMX280_MAX_DECIMALS;
+        switch (mag->magnitude.type) {
             case MAGNITUDE_TEMPERATURE:
-                bmx->temperature.sel_decimals = mag->magnitude.sel_decimals;
+                bmx->temperature.decimals = mag->magnitude.decimals;
                 bmx->filter = mag->magnitude.iir_filter;
                 bmx->osrs_t = mag->magnitude.oversampling;
                 break;
             
             case MAGNITUDE_PRESSURE:
-                bmx->pressure.sel_decimals = mag->magnitude.sel_decimals;
+                bmx->pressure.decimals = mag->magnitude.decimals;
                 bmx->osrs_p = mag->magnitude.oversampling;
                 break;
 
             case MAGNITUDE_HUMIDITY:
                 if(bmx->chip_id == BMX280_ID_BME280) {
-                    bmx->humidity.sel_decimals = mag->magnitude.sel_decimals;
+                    bmx->humidity.decimals = mag->magnitude.decimals;
                     bmx->osrs_h = mag->magnitude.oversampling;
                 }
                 break;
@@ -446,5 +525,5 @@ static esp_err_t bmx_apply_config(bmx280_sensor_t *bmx) {
 }
 
 void *bmx280_get_interface(void) {
-    return &bme280_interface;
+    return (senos_sensor_interface *)&bmx280_interface;
 }
