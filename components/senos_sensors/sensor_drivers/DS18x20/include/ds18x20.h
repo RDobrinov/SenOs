@@ -10,6 +10,11 @@
 #include <inttypes.h>
 #include "senos_bus_drv.h"
 
+#define DS18X20_RESOLUTION_9   0
+#define DS18X20_RESOLUTION_10  1
+#define DS18X20_RESOLUTION_11  2
+#define DS18X20_RESOLUTION_12  3
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -19,7 +24,7 @@ extern "C" {
  *
  * @return Handle to driver API
  */
-void *ds18x20_get_driver(void);
+void *ds18x20_get_interface(void);
 
 #ifdef __cplusplus
 }
