@@ -213,6 +213,9 @@ static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_
 }
 
 static esp_err_t bmx280_remove(void *handle) {
+    bmx280_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
+    if(ESP_OK != senos_remove_device(sensor->handle)) return ESP_FAIL;  /* Device deattach failed by some reason */
+    free(sensor);
     return ESP_OK;
 }
 

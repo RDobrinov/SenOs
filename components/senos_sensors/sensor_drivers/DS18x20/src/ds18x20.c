@@ -199,7 +199,6 @@ static esp_err_t ds18x20_get(void *handle, senos_sensor_mag_caps_t *magnitudes) 
 static esp_err_t ds18x20_getcaps(void *handle, senos_sensor_caps_t *caps) {
     //ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
     caps->mag_caps = NULL;
-    caps->mag_caps = NULL;
     caps->warmup_time = 0;
     caps->prepare_time = 0;
     caps->cooldown_time = 0;

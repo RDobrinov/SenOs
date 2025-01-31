@@ -52,6 +52,10 @@ typedef struct {
             uint32_t miso:8;
             uint32_t sclk:8;
             uint32_t cs:8;
+            uint32_t filter_select:1;
+            uint32_t wires_select:1;
+            uint32_t r_ref:16;
+            uint32_t reserved:14;
         } max31865;
     };
 } senos_sensor_hw_conf_t;

@@ -8,7 +8,13 @@
 #define _SENOS_MAX31865_DRIVER_H_
 
 #include <inttypes.h>
-#include "senos_bus_drv.h"
+
+#define MAX31865_FILTER_60HZ 0
+#define MAX31865_FILTER_50HZ 1
+
+#define MAX31865_2WIRE_SENSOR 0
+#define MAX31865_3WIRE_SENSOR 1
+#define MAX31865_4WIRE_SENSOR 0
 
 #ifdef __cplusplus
 extern "C" {
@@ -19,7 +25,7 @@ extern "C" {
  *
  * @return Handle to driver API
  */
-void *max31865_get_driver(void);
+void *max31865_get_interface(void);
 
 #ifdef __cplusplus
 }
