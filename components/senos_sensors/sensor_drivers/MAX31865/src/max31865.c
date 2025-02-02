@@ -65,7 +65,7 @@ static esp_err_t max31865_init(void *handle);
 static esp_err_t max31865_prepare(void *handle);
 static esp_err_t max31865_measure(void *handle);
 static esp_err_t max31865_read(void *handle);
-static esp_err_t max31865_get(void *handle, senos_sensor_mag_caps_t *magnitudes);
+static esp_err_t max31865_getvalue(void *handle, senos_sensor_mag_caps_t *magnitudes);
 static esp_err_t max31865_getcaps(void *handle, senos_sensor_caps_t *caps);
 static esp_err_t max31865_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
 
@@ -78,7 +78,7 @@ static senos_sensor_api max31865_api = {
     ._prepare = &max31865_prepare,
     ._measure = &max31865_measure,
     ._read = &max31865_read,
-    ._get = &max31865_get,
+    ._getvalue = &max31865_getvalue,
     ._getcaps = &max31865_getcaps,
     ._config = &max31865_config
 };
@@ -171,7 +171,9 @@ static esp_err_t max31865_read(void *handle) {
     return err;
 }
 
-static esp_err_t max31865_get(void *handle, senos_sensor_mag_caps_t *magnitudes);
+static esp_err_t max31865_getvalue(void *handle, senos_sensor_mag_caps_t *magnitudes) {
+    return ESP_OK;
+}
 static esp_err_t max31865_getcaps(void *handle, senos_sensor_caps_t *caps) {
     caps->mag_caps = NULL;
     caps->warmup_time = 0;
@@ -192,7 +194,9 @@ static esp_err_t max31865_getcaps(void *handle, senos_sensor_caps_t *caps) {
     caps->mag_caps = new_magnitude;
     return ESP_OK;
 }
-static esp_err_t max31865_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
+static esp_err_t max31865_config(void *handle, senos_sensor_mag_caps_t *magnitudes) {
+    return ESP_OK;
+}
 
 static esp_err_t max31865_apply_config(max31865_sensor_t *sensor) {
     senos_dev_transaction_t tr = {
@@ -205,7 +209,5 @@ static esp_err_t max31865_apply_config(max31865_sensor_t *sensor) {
 }
 
 void *max31865_get_interface(void) {
-    max31865_sensor_t test;
-    
-    return NULL;
+    return (senos_sensor_interface *)&max31865_interface;
 }

@@ -17,6 +17,7 @@
 extern "C" {
 #endif
 
+esp_err_t senos_sensor_scan(senos_sensor_hw_conf_t *dv, uint8_t *list, size_t *len);
 esp_err_t senos_sensor_add(senos_sensor_hw_conf_t *dv, senos_sensor_handle_t **handle);
 
 #ifdef __cplusplus

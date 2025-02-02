@@ -42,6 +42,8 @@ static esp_err_t senos_i2c_desc(void *handle, char *stats, size_t max_chars, boo
 static esp_err_t senos_i2c_stats(void *handle, char *stats, size_t max_chars);
 static esp_err_t senos_i2c_reset(void *handle);
 
+static uint32_t senos_i2c_getid(void *handle);
+
 /** Internal helper functions */
 static senos_i2c_device_t *senos_i2c_find_device(uint32_t id);
 static void senos_i2c_release_master(i2c_master_bus_handle_t handle);
@@ -55,7 +57,8 @@ static senos_drv_api senos_i2c_api = {
     ._wr = &senos_i2c_wr,
     ._desc = &senos_i2c_desc,
     ._stats = &senos_i2c_stats,
-    ._reset = &senos_i2c_reset
+    ._reset = &senos_i2c_reset,
+    ._getid = &senos_i2c_getid
 };
 
 static uint8_t transaction_buffer[32];
@@ -283,6 +286,12 @@ static esp_err_t senos_i2c_stats(void *handle, char *stats, size_t max_chars) {
 static esp_err_t senos_i2c_reset(void *handle)
 {
     return ESP_OK;
+}
+
+static uint32_t senos_i2c_getid(void *handle) {
+    //senos_i2c_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base);
+    //return device->device_id;
+    return ((senos_i2c_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base))->device_id;
 }
 
 /** Internal helper functions */

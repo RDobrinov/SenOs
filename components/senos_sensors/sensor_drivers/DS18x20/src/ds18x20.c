@@ -76,9 +76,11 @@ static esp_err_t ds18x20_init(void *handle);
 static esp_err_t ds18x20_prepare(void *handle);
 static esp_err_t ds18x20_measure(void *handle);
 static esp_err_t ds18x20_read(void *handle);
-static esp_err_t ds18x20_get(void *handle, senos_sensor_mag_caps_t *magnitudes);
+static esp_err_t ds18x20_getvalue(void *handle, senos_sensor_mag_caps_t *magnitudes);
 static esp_err_t ds18x20_getcaps(void *handle, senos_sensor_caps_t *caps);
 static esp_err_t ds18x20_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
+
+static uint32_t ds18x20_getid(void *handle);
 
 static esp_err_t ds18x20_apply_config(ds18x20_sensor_t *sensor);
 
@@ -89,13 +91,21 @@ static senos_sensor_api ds18x20_api = {
     ._prepare = &ds18x20_prepare,
     ._measure = &ds18x20_measure,
     ._read = &ds18x20_read,
-    ._get = &ds18x20_get,
+    ._getvalue = &ds18x20_getvalue,
     ._getcaps = &ds18x20_getcaps,
-    ._config = &ds18x20_config
+    ._config = &ds18x20_config,
+    ._getid = ds18x20_getid
 };
 
+void ds_hd(const uint8_t *buf, size_t len) {
+    if( !len ) return;
+    for(int i=0; i<len; i++) printf("%02X ", buf[i]);
+    printf("\n");
+    return;
+}
+
 static esp_err_t ds18x20_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t **handle) {
-    if(config->type != SENSOR_DS18x20) return ESP_ERR_NOT_SUPPORTED;
+    if(config->type != SENSOR_DS18X20) return ESP_ERR_NOT_SUPPORTED;
     *handle = NULL;
     esp_err_t err;
     senos_dev_cfg_t dev_cfg = {
@@ -139,7 +149,7 @@ static esp_err_t ds18x20_remove(void *handle) {
 
 static esp_err_t ds18x20_init(void *handle) {
     ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
-    printf("_init *bmx %p\n", sensor);
+    printf("ds18x20_init %p\n", sensor);
     return ds18x20_apply_config(sensor);
 }
 
@@ -151,7 +161,7 @@ static esp_err_t ds18x20_measure(void *handle) {
     ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
     senos_dev_transaction_t tr = {
         .data = (uint8_t *)&sensor->reg,
-        .dev_reg = DS18X20_FUNC_CONVERT
+        .dev_cmd = DS18X20_FUNC_CONVERT
     };
     return (*(sensor->handle->api))->_write(&tr, sensor->handle);
 }
@@ -162,7 +172,7 @@ static esp_err_t ds18x20_read(void *handle) {
     ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
     senos_dev_transaction_t tr = {
         .data = (uint8_t *)&pad,
-        .dev_reg = DS18X20_FUNC_READ,
+        .dev_cmd = DS18X20_FUNC_READ,
         .rdBytes = 9
     };
     err = (*(sensor->handle->api))->_read(&tr, sensor->handle);
@@ -172,10 +182,12 @@ static esp_err_t ds18x20_read(void *handle) {
         /* Result in Q20.12 */
         sensor->temperature.value = (uint32_t)(((int32_t)sensor->temperature.value >> 4) * DS18X20_IIR_ALPHA + ((int16_t)pad.adc_readout << 4 ) * DS18X20_IIR_BETA);
     } else sensor->temperature.value = (uint32_t)((int16_t)pad.adc_readout << 8 );
+    sensor->temperature.valid = true;
+    printf("DS18B20 T=%f\n",(float)((int32_t)sensor->temperature.value/4096.0));
     return ESP_OK;
 }
 
-static esp_err_t ds18x20_get(void *handle, senos_sensor_mag_caps_t *magnitudes) {
+static esp_err_t ds18x20_getvalue(void *handle, senos_sensor_mag_caps_t *magnitudes) {
     ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
     for(senos_sensor_mag_caps_t *mag = magnitudes; mag != NULL; mag = mag->next) {
         mag->magnitude = (senos_sensor_magnitude_t){.type = mag->magnitude.type};
@@ -185,8 +197,9 @@ static esp_err_t ds18x20_get(void *handle, senos_sensor_mag_caps_t *magnitudes) 
                  * This will transfer type, metric, decimals and valid flag to result structure
                 */
                 *((uint32_t *)&mag->magnitude) = *((uint32_t *)&sensor->temperature) & 0x0000FFFFLU;
-                mag->magnitude.value = (uint32_t)(((int32_t)((float)((int32_t)sensor->temperature.value / 4096.0) * 100)) / 
-                    senos_sensor_magnitude_devider[(MAGNITUDE_MAX_DECIMALS - sensor->temperature.decimals)]);
+                mag->magnitude.value = (uint32_t)((((float)((int32_t)sensor->temperature.value / 4096.0)) * 
+                    senos_sensor_magnitude_divider[sensor->temperature.decimals]) + 0.5);
+                //printf("get_value %lu\n", mag->magnitude.value);
                 break;
             default:
                 mag->magnitude.valid = false;
@@ -236,14 +249,21 @@ static esp_err_t ds18x20_config(void *handle, senos_sensor_mag_caps_t *magnitude
     return ds18x20_apply_config(sensor);
 }
 
+static uint32_t ds18x20_getid(void *handle) {
+    ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
+    return (*(sensor->handle->api))->_getid(sensor->handle);
+}
+
 static esp_err_t ds18x20_apply_config(ds18x20_sensor_t *sensor) {
     sensor->reg.res = sensor->temperature.resolution;
     senos_dev_transaction_t tr = {
         .data = (uint8_t *)&sensor->reg,
-        .dev_reg = DS18X20_FUNC_WRITE,
+        .dev_cmd = DS18X20_FUNC_WRITE,
         .rdBytes = 0,
         .wrBytes = 3
     };
+    //printf("ds18x20_apply_config ");
+    //ds_hd(tr.data, 3);
     return (*(sensor->handle->api))->_write(&tr, sensor->handle);
 }
 

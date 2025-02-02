@@ -44,6 +44,8 @@ static esp_err_t senos_1wire_desc(void *handle, char *stats, size_t max_chars, b
 static esp_err_t senos_1wire_stats(void *handle, char *stats, size_t max_chars);
 static esp_err_t senos_1wire_reset(void *handle);
 
+static uint32_t senos_1wire_getid(void *handle);
+
 static senos_1wire_device_t *senos_1wire_find_device(uint32_t id);
 
 /**
@@ -90,7 +92,8 @@ static senos_drv_api senos_1wire_api = {
     ._wr = &senos_1wire_read,
     ._desc = &senos_1wire_desc,
     ._stats = &senos_1wire_stats,
-    ._reset = &senos_1wire_reset,
+    ._getid = &senos_1wire_getid,
+    ._reset = &senos_1wire_reset
 };
 static uint8_t transaction_buffer[32]; 
 
@@ -267,6 +270,12 @@ static esp_err_t senos_1wire_reset(void *handle) {
     senos_1wire_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base);
     onewire_bus_reset(device->handle);
     return ESP_OK;
+}
+
+static uint32_t senos_1wire_getid(void *handle) {
+    senos_1wire_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base);
+    return device->device_id;
+    //return ((senos_1wire_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base))->device_id;
 }
 
 static esp_err_t senos_1wire_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices) {

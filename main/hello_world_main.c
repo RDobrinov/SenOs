@@ -15,7 +15,7 @@
 #include "senos_bus_drv.h"
 
 //#include "senos_sensor_base.h"
-//#include "senos_sensor_magnitudes.h"
+#include "senos_sensor_magnitudes.h"
 //#include "senos_sensor_private.h"
 #include "senos_sensors.h"
 
@@ -46,18 +46,88 @@ void app_main(void)
         }
     }; */ 
     senos_dev_handle_t i2c[2];
-    senos_sensor_handle_t *bme;
-
+    //senos_sensor_handle_t *ds1, *ds2;
+    /** BME280 test */
+    esp_err_t err;
+    senos_sensor_handle_t *bm_sensors[2];
     senos_sensor_hw_conf_t sc = {
-        .type = SENSOR_BMx280,
+        .type = SENSOR_BMX280,
         .bmx280 = {.scl = GPIO_NUM_26, .sda = GPIO_NUM_18, .spi3w = false}
     };
-    printf("ERROR: %d\n", senos_sensor_add(&sc, &bme));
-    printf("bme ptr %p\n", bme);
-    (*bme)->_init(bme);
-    (*bme)->_measure(bme);
-    vTaskDelay(100);
-    (*bme)->_read(bme);
+    for(int i=0; i<2; i++) {
+        //*bm_sensors[i] = NULL;
+        err = senos_sensor_add(&sc, &bm_sensors[i]);
+        vTaskDelay(1);
+        if(ESP_OK == err) printf("attached\n");
+        else printf("failed with error %d\n", err);
+        if(*bm_sensors[i]) {
+            (*bm_sensors[i])->_init(bm_sensors[i]);
+            senos_sensor_caps_t caps;
+            (*bm_sensors[i])->_getcaps(bm_sensors[i], &caps);
+            printf("Delay for %lu plus safeguard of %lu milliseconds\n", caps.measure_time, portTICK_PERIOD_MS);
+            TickType_t delay = (caps.measure_time / portTICK_PERIOD_MS) + 1;
+            (*bm_sensors[i])->_measure(bm_sensors[i]);
+            vTaskDelay(delay);
+            (*bm_sensors[i])->_read(bm_sensors[i]);
+            (*bm_sensors[i])->_getvalue(bm_sensors[i], caps.mag_caps);
+            for(senos_sensor_mag_caps_t *magnitude = caps.mag_caps; magnitude != NULL; magnitude = magnitude->next) {
+                if(magnitude->magnitude.valid) {
+                    char format[20];
+                    sprintf(format, "Measured %%.%df\n", magnitude->magnitude.decimals);
+                    //printf("format: %s\n", format);
+                    printf("BME280 [%08lX]: ", (*bm_sensors[i])->_getid(bm_sensors[i]));
+                    printf(format, (float)(magnitude->magnitude.value / (float)senos_sensor_magnitude_divider[magnitude->magnitude.decimals]));
+                }
+            }
+        }
+        sc.bmx280.scl = GPIO_NUM_22;
+        sc.bmx280.sda = GPIO_NUM_21;
+    }
+    return;
+    /** DS18x20 test */
+    senos_sensor_handle_t *ds_sensors[2]; 
+    uint64_t holder[8];
+    size_t len = 3;
+    
+    sc = (senos_sensor_hw_conf_t) {
+        .type = SENSOR_DS18X20,
+        .ds18x20 = {
+            .rom_code = 0x28FF8CA7741604DBLLU,
+            .gpio = GPIO_NUM_32
+        }
+    };
+
+    printf("Scanning 1-Wire bus...");
+    printf("SCAN_ERROR: [%d]", senos_sensor_scan(&sc, (uint8_t *)holder, &len));
+    printf("found %d device(s)\n", len);
+    for(int i=0; i<len; i++) {
+        sc.ds18x20.rom_code = holder[i];
+        printf("Device %016llX ", holder[i]);
+        err = senos_sensor_add(&sc, &ds_sensors[i]);
+        if(ESP_OK == err) printf("attached\n");
+        else printf("failed with error %d\n", err);
+    }
+
+    for(int i=0; i<len; i++) {
+        (*ds_sensors[i])->_init(ds_sensors[i]);
+        senos_sensor_caps_t caps;
+        (*ds_sensors[i])->_getcaps(ds_sensors[i], &caps);
+        printf("Delay for %lu plus safeguard of %lu milliseconds\n", caps.measure_time, portTICK_PERIOD_MS);
+        TickType_t delay = (caps.measure_time / portTICK_PERIOD_MS) + 1;
+        (*ds_sensors[i])->_measure(ds_sensors[i]);
+        vTaskDelay(delay);
+        (*ds_sensors[i])->_read(ds_sensors[i]);
+        (*ds_sensors[i])->_getvalue(ds_sensors[i], caps.mag_caps);
+        for(senos_sensor_mag_caps_t *magnitude = caps.mag_caps; magnitude != NULL; magnitude = magnitude->next) {
+            if(magnitude->magnitude.valid) {
+                char format[20];
+                sprintf(format, "Measured %%.%df\n", magnitude->magnitude.decimals);
+                //printf("format: %s\n", format);
+                printf("DS18B20 [%08lX]: ", (*ds_sensors[i])->_getid(ds_sensors[i]));
+                printf(format, (float)(magnitude->magnitude.value / (float)senos_sensor_magnitude_divider[magnitude->magnitude.decimals]));
+            }
+        }
+    }
     return;
 
     senos_dev_cfg_t dv = {
@@ -124,8 +194,8 @@ void app_main(void)
     };
     senos_dev_handle_t a[2]; 
     //printf("%p, %p\n", &a[0], &a[1]);
-    uint64_t holder[8];
-    size_t len = 3;
+    //uint64_t holder[8];
+    //size_t len = 3;
     senos_scan_bus(&dev, (uint8_t *)holder, &len);
     for(int i=0; i<len; i++) printf("not attached [%d] %016llX\n", len, holder[i]);
     senos_add_device(&dev, &(a[0]));

@@ -20,7 +20,7 @@ extern "C" {
 #define MAGNITUDE_MAX_DECIMALS 4    /*!< Maximum decimals in value returned by sensor drivers */
 #define MAGNITUDE_MAX_DEVIDER_COUNT MAGNITUDE_MAX_DECIMALS + 1 /*!< Decimal deviders count */
 
-extern const uint16_t senos_sensor_magnitude_devider[];
+extern const uint16_t senos_sensor_magnitude_divider[];
 
 typedef enum {
     MAGNITUDE_NONE,

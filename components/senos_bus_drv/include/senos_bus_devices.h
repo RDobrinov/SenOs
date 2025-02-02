@@ -91,6 +91,7 @@ typedef struct {
     esp_err_t (*_desc)(void *handle, char *stats, size_t max_chars, bool type);
     esp_err_t (*_stats)(void *handle, char *stats, size_t max_chars);
     esp_err_t (*_reset)(void *handle);
+    uint32_t (*_getid)(void *handle);
 } senos_drv_api;
 
 typedef senos_drv_api *senos_drv_api_t;

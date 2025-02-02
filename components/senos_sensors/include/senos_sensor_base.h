@@ -28,8 +28,8 @@ extern "C" {
  */
 
 typedef enum {
-    SENSOR_DS18x20,
-    SENSOR_BMx280,
+    SENSOR_DS18X20,
+    SENSOR_BMX280,
     SENSOR_MAX31865,
     SENSOR_LAST
 } senos_known_sensors_t;

@@ -40,9 +40,10 @@ typedef struct {
     esp_err_t (*_prepare)(void *handle);
     esp_err_t (*_measure)(void *handle);
     esp_err_t (*_read)(void *handle);
-    esp_err_t (*_get)(void *handle, senos_sensor_mag_caps_t *magnitudes);
+    esp_err_t (*_getvalue)(void *handle, senos_sensor_mag_caps_t *magnitudes);
     esp_err_t (*_getcaps)(void *handle, senos_sensor_caps_t *caps);
     esp_err_t (*_config)(void *handle, senos_sensor_mag_caps_t *magnitudes);
+    uint32_t (*_getid)(void *handle);
     bool (*_ready)(void *handle);
 } senos_sensor_api;
 
