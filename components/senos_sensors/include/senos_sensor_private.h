@@ -5,7 +5,7 @@
  */
 
 /**
- * MultiSense OS base sensor definitions
+ * MultiSense OS sensor task private structures
  */
 
 #ifndef _SENOS_SENSOR_PRIVATE_H_
@@ -22,18 +22,25 @@ extern "C" {
 #include "senos_sensor_base.h"
 #include "senos_sensor_magnitudes.h"
 
+/** Single magnitude element */
 typedef struct senos_sensor_mag_caps {
-    senos_sensor_magnitude_t magnitude;
-    struct senos_sensor_mag_caps *next;
+    senos_sensor_magnitude_t magnitude; /*!< Magnitude descriptor */
+    struct senos_sensor_mag_caps *next; /*!< Pointer to next magnitude */
 } senos_sensor_mag_caps_t;
 
+/** Sensor and magnitude capabilites */
 typedef struct {
-    senos_sensor_mag_caps_t *mag_caps;
-    uint32_t warmup_time;
-    uint32_t prepare_time;
-    uint32_t measure_time;
-    uint32_t cooldown_time;
+    senos_sensor_mag_caps_t *mag_caps;  /*!< First magnitude */
+    uint32_t warmup_time;               /*!< Warm Up time in miliseconds */
+    uint32_t prepare_time;              /*!< Prepare time in miliseconds */
+    uint32_t measure_time;              /*!< Measure time in miliseconds */
+    uint32_t cooldown_time;             /*!< Cooldown time in miliseconds */
 } senos_sensor_caps_t;
+
+typedef struct {
+    senos_sensor_caps_t caps;
+    
+} senos_sensor_device_t;
 
 typedef struct {
     esp_err_t (*_init)(void *handle);

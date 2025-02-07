@@ -207,7 +207,7 @@ static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_
     new_bmx->pressure = (senos_sensor_magnitude_t) {
         .decimals = BMX280_MAX_DECIMALS,  //Точност под съмнение. !Направо нула! Компенсацията е в паскали ама едва ли някой го вълнува десети от хектопаскалите
         .type = MAGNITUDE_PRESSURE,
-        .metric = METRIC_HECTOPASCSAL,
+        .metric = METRIC_HECTOPASCAL,
         .iir_filter = false,
         .oversampling = BMX280_DEFAULT_OVERSAMPLING_PRES,
     };

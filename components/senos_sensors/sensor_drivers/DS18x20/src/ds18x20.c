@@ -9,8 +9,7 @@
 #include "senos_sensor_private.h"
 #include "senos_bus_drv.h"
 
-#define DS18X20_MAX_DECIMALS MAGNITUDE_MAX_DECIMALS  /*!< Maximum driver decimals */
-#define DS18X20_DEFAULT_DECIMALS DS18X20_MAX_DECIMALS - 2  /*!< Default driver decimals */
+#define DS18X20_DEFAULT_DECIMALS 2  /*!< Default driver decimals */
 #define DS18X20_DEFAULT_RESOLUTION DS18X20_RESOLUTION_12 /*!< Default sensor resolution */
 #define DS18X20_MAX_CONVERT_TIME    750 /*!< Maximum convert time ( 12-bit resolution) */
 
@@ -219,7 +218,7 @@ static esp_err_t ds18x20_getcaps(void *handle, senos_sensor_caps_t *caps) {
     senos_sensor_mag_caps_t *new_magnitude = (senos_sensor_mag_caps_t *)calloc(1, sizeof(senos_sensor_mag_caps_t));
     if(!new_magnitude) return ESP_ERR_NO_MEM;
     new_magnitude->magnitude = (senos_sensor_magnitude_t) {
-        .decimals = DS18X20_MAX_DECIMALS,
+        .decimals = MAGNITUDE_MAX_DECIMALS,
         .type = MAGNITUDE_TEMPERATURE,
         .metric = METRIC_DEGREES,
         .iir_filter = true,
@@ -235,7 +234,7 @@ static esp_err_t ds18x20_config(void *handle, senos_sensor_mag_caps_t *magnitude
     if(!magnitudes) return ESP_ERR_INVALID_ARG;
     ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
     for(senos_sensor_mag_caps_t *mag = magnitudes; mag != NULL; mag = mag->next) {
-        if(mag->magnitude.decimals > DS18X20_MAX_DECIMALS) mag->magnitude.decimals = DS18X20_MAX_DECIMALS;
+        if(mag->magnitude.decimals > MAGNITUDE_MAX_DECIMALS) mag->magnitude.decimals = DS18X20_DEFAULT_DECIMALS;
         if(mag->magnitude.resolution > DS18X20_RESOLUTION_12) mag->magnitude.decimals = DS18X20_RESOLUTION_12;
         switch (mag->magnitude.type) {
             case MAGNITUDE_TEMPERATURE:
@@ -246,7 +245,8 @@ static esp_err_t ds18x20_config(void *handle, senos_sensor_mag_caps_t *magnitude
                 break;
         }
     }
-    return ds18x20_apply_config(sensor);
+    //return ds18x20_apply_config(sensor);
+    return ESP_OK;
 }
 
 static uint32_t ds18x20_getid(void *handle) {

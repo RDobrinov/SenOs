@@ -5,7 +5,7 @@
  */
 
 /**
- * MultiSense OS base sensor definitions
+ * MultiSense OS magnitudes
  */
 #ifndef _SENOS_SENSOR_MAGNITUDES_H_
 #define _SENOS_SENSOR_MAGNITUDES_H_
@@ -20,23 +20,27 @@ extern "C" {
 #define MAGNITUDE_MAX_DECIMALS 4    /*!< Maximum decimals in value returned by sensor drivers */
 #define MAGNITUDE_MAX_DEVIDER_COUNT MAGNITUDE_MAX_DECIMALS + 1 /*!< Decimal deviders count */
 
+/** Magnitude decimal divider values */
 extern const uint16_t senos_sensor_magnitude_divider[];
 
+/** Magnitudes */
 typedef enum {
-    MAGNITUDE_NONE,
-    MAGNITUDE_TEMPERATURE,
-    MAGNITUDE_HUMIDITY,
-    MAGNITUDE_PRESSURE,
-    MAGNITUDE_LAST
+    MAGNITUDE_NONE,         /*!< No magnitude */
+    MAGNITUDE_TEMPERATURE,  /*!< Temperature */
+    MAGNITUDE_HUMIDITY,     /*!< Relative humidity */
+    MAGNITUDE_PRESSURE,     /*!< Pressure */
+    MAGNITUDE_LAST          /*!< Failsafe magnitude */
 } senos_magnitudes_t;
 
+/** Magnitude metrics */
 typedef enum {
-    METRIC_NONE,
-    METRIC_DEGREES,
-    METRIC_PRECENTAGE,
-    METRIC_HECTOPASCSAL
+    METRIC_NONE,        /*!< No metric */
+    METRIC_DEGREES,     /*!< Degrees */
+    METRIC_PRECENTAGE,  /*!< Precentage */
+    METRIC_HECTOPASCAL  /*!< Hecropascals */
 } senos_metrics_t;
 
+/** Type of sensor magnitude */
 typedef struct {
     /** REMARK FOR DEVELOPER
      * Never insert new variable in first 16 bits, use reserved only

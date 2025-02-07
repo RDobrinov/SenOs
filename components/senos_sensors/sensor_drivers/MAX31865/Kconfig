@@ -1,0 +1,54 @@
+menu "MAX31865 Configuration"
+    choice SENOS_MAX31865_FILTER
+        prompt "Default notch filter frequency"
+        default SENOS_MAX31865_FILTER_50HZ
+        help
+            "Select the notch frequency for the noise rejection filter"
+        config SENOS_MAX31865_FILTER_50HZ
+            bool "50Hz filter"
+        config SENOS_MAX31865_FILTER_60HZ
+            bool "60Hz filter"
+    endchoice
+    config SENOS_MAX31865_FILTER
+        int
+        default 1 if SENOS_MAX31865_FILTER_50HZ
+        default 0 if SENOS_MAX31865_FILTER_60HZ
+
+    choice SENOS_MAX31865_WIRES
+        prompt "RTD Wire connection"
+        default SENOS_MAX31865_WIRES_4W
+        help
+            "Select the notch frequency for the noise rejection filter"
+        config SENOS_MAX31865_WIRES_2W
+            bool "2 wires connection"
+        config SENOS_MAX31865_WIRES_3W
+            bool "3 wires connection"
+        config SENOS_MAX31865_WIRES_4W
+            bool "4 wires connection"
+    endchoice
+    config SENOS_MAX31865_WIRES
+        int
+        default 0 if SENOS_MAX31865_WIRES_2W
+        default 1 if SENOS_MAX31865_WIRES_3W
+        default 0 if SENOS_MAX31865_WIRES_4W
+
+    config SENOS_MAX31865_RREF
+    int "Resistance of the reference resistor"
+    range 390 450
+    default 430
+    help
+        Resistance of the low drift reference resistor in Ohms
+
+    config SENOS_MAX31865_DECIMALS
+    int "Default decimal places"
+    range 0 4
+    default 2
+    help
+        Default decimals for measured temperature
+
+    config SENOS_MAX31865_IIRFILTER
+        bool "Activate internal IIR Filter"
+        help
+            Enable or disable internal driver IIR Filter
+        default n
+endmenu

@@ -326,6 +326,6 @@ static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, seno
     if(transaction->wrBytes > 0) {
         memcpy(&transaction_buffer[handle->cmd_bytes + handle->addr_bytes], transaction->data, transaction->wrBytes);
     }
-    i2c_hex(transaction_buffer, 32);
+    //i2c_hex(transaction_buffer, 32);
     return ESP_OK;
 }
