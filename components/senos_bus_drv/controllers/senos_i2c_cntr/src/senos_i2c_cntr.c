@@ -145,8 +145,6 @@ static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
     device_list = new_device; /* <- END Attach device */
     (*handle)->api = &new_device->base;
     (*handle)->bus_type = SENOS_BUS_I2C;
-    //(*handle)->device_id = new_device->device_id;
-    printf("device:%p, handle:%p->%p\n", new_device, *handle, (*handle)->api);
     return ESP_OK;
 }
 
@@ -212,7 +210,6 @@ static esp_err_t senos_i2c_read(senos_dev_transaction_t *transaction, void *hand
     if(transaction->rdBytes == 0) return ESP_ERR_INVALID_SIZE;
     if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
     size_t command_len = device->cmd_bytes + device->addr_bytes;
-    printf("senos_i2c_read command_len:%d, transaction->rdBytes:%d\n", command_len, transaction->rdBytes);
     if(command_len > 0) {
         err = i2c_master_transmit_receive(device->handle, transaction_buffer, command_len, transaction->data, transaction->rdBytes, device->xfer_timeout_ms);
         if(ESP_OK == err) device->stats.snd += command_len;
@@ -229,7 +226,6 @@ static esp_err_t senos_i2c_write(senos_dev_transaction_t *transaction, void *han
     senos_i2c_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base);
     if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
     size_t total_bytes_write = device->cmd_bytes + device->addr_bytes + transaction->wrBytes;
-    //printf("senos_i2c_write total_bytes_write:%d\n", total_bytes_write);
     if(total_bytes_write == 0) return ESP_ERR_INVALID_SIZE;
     err = i2c_master_transmit(device->handle, transaction_buffer, total_bytes_write, device->xfer_timeout_ms);
     if(ESP_OK != err) {
@@ -244,7 +240,6 @@ static esp_err_t senos_i2c_wr(senos_dev_transaction_t *transaction, void *handle
     senos_i2c_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base);
     if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
     size_t total_bytes_write = device->cmd_bytes + device->addr_bytes + transaction->wrBytes;
-    //printf("senos_i2c_wr total_bytes_write:%d, transaction->rdBytes:%d\n", total_bytes_write, transaction->rdBytes);
     if(total_bytes_write == 0) return ESP_ERR_INVALID_SIZE;
     err = i2c_master_transmit_receive(device->handle, transaction_buffer, total_bytes_write, transaction->data, transaction->rdBytes, device->xfer_timeout_ms);
     if(ESP_OK != err) {
@@ -289,8 +284,6 @@ static esp_err_t senos_i2c_reset(void *handle)
 }
 
 static uint32_t senos_i2c_getid(void *handle) {
-    //senos_i2c_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base);
-    //return device->device_id;
     return ((senos_i2c_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base))->device_id;
 }
 
@@ -314,8 +307,6 @@ static void senos_i2c_release_master(i2c_master_bus_handle_t handle) {
 
 static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, senos_i2c_device_t *handle) {
     if((handle->cmd_bytes + handle->addr_bytes + transaction->wrBytes) > 32) return ESP_ERR_INVALID_SIZE;
-    //transaction_buffer[0] = ONEWIRE_CMD_MATCH_ROM;
-    //*(uint64_t *)(&transaction_buffer[1]) = handle->address;
     if(handle->cmd_bytes > 0) {
         if(handle->cmd_bytes ==2) *((uint16_t *)&transaction_buffer[0]) = (uint16_t)( 0xFFFF & transaction->dev_cmd);
         else transaction_buffer[0] = (uint8_t)( 0xFF & transaction->dev_cmd);
@@ -326,6 +317,5 @@ static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, seno
     if(transaction->wrBytes > 0) {
         memcpy(&transaction_buffer[handle->cmd_bytes + handle->addr_bytes], transaction->data, transaction->wrBytes);
     }
-    //i2c_hex(transaction_buffer, 32);
     return ESP_OK;
 }

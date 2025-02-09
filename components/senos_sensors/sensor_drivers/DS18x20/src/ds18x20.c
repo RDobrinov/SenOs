@@ -9,8 +9,8 @@
 #include "senos_sensor_private.h"
 #include "senos_bus_drv.h"
 
-#define DS18X20_DEFAULT_DECIMALS 2  /*!< Default driver decimals */
-#define DS18X20_DEFAULT_RESOLUTION DS18X20_RESOLUTION_12 /*!< Default sensor resolution */
+#define DS18X20_DEFAULT_DECIMALS CONFIG_SENOS_DS18X20_DECIMALS  /*!< Default driver decimals */
+#define DS18X20_DEFAULT_RESOLUTION CONFIG_SENOS_DS18X20_RESOLUTION /*!< Default sensor resolution */
 #define DS18X20_MAX_CONVERT_TIME    750 /*!< Maximum convert time ( 12-bit resolution) */
 
 #define DS18X20_FUNC_CONVERT    0x44
@@ -119,7 +119,6 @@ static esp_err_t ds18x20_add(senos_sensor_hw_conf_t *config, senos_sensor_handle
     };
     ds18x20_sensor_t *new_ds = (ds18x20_sensor_t *)calloc(1,sizeof(ds18x20_sensor_t));
     if(!new_ds) return ESP_ERR_NO_MEM;
-    printf("new_ds %p\n", new_ds);
     err = senos_add_device(&dev_cfg, &new_ds->handle);
     if(ESP_OK != err) {
         free(new_ds);
@@ -148,7 +147,6 @@ static esp_err_t ds18x20_remove(void *handle) {
 
 static esp_err_t ds18x20_init(void *handle) {
     ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
-    printf("ds18x20_init %p\n", sensor);
     return ds18x20_apply_config(sensor);
 }
 
@@ -177,12 +175,15 @@ static esp_err_t ds18x20_read(void *handle) {
     err = (*(sensor->handle->api))->_read(&tr, sensor->handle);
     if(ESP_OK != err) return err;
     pad.lsb = ds18x20_adc_mask[pad.res] & pad.lsb;
-    if(sensor->temperature.iir_filter) {
+    if(sensor->temperature.iir_filter && sensor->temperature.iir_init) {
         /* Result in Q20.12 */
+        //printf("ds18b20 iir active\n");
         sensor->temperature.value = (uint32_t)(((int32_t)sensor->temperature.value >> 4) * DS18X20_IIR_ALPHA + ((int16_t)pad.adc_readout << 4 ) * DS18X20_IIR_BETA);
-    } else sensor->temperature.value = (uint32_t)((int16_t)pad.adc_readout << 8 );
+    } else  {
+        sensor->temperature.value = (uint32_t)((int16_t)pad.adc_readout << 8 );
+    }
+    if(!sensor->temperature.iir_init) sensor->temperature.iir_init = true;
     sensor->temperature.valid = true;
-    printf("DS18B20 T=%f\n",(float)((int32_t)sensor->temperature.value/4096.0));
     return ESP_OK;
 }
 
@@ -240,12 +241,14 @@ static esp_err_t ds18x20_config(void *handle, senos_sensor_mag_caps_t *magnitude
             case MAGNITUDE_TEMPERATURE:
                 sensor->temperature.decimals = mag->magnitude.decimals;
                 sensor->temperature.iir_filter = mag->magnitude.iir_filter;
-                sensor->temperature.resolution = mag->magnitude.resolution;
+                if(sensor->temperature.resolution != mag->magnitude.resolution) {
+                    sensor->temperature.resolution = mag->magnitude.resolution;
+                    return ds18x20_apply_config(sensor);
+                }
             default:
                 break;
         }
     }
-    //return ds18x20_apply_config(sensor);
     return ESP_OK;
 }
 

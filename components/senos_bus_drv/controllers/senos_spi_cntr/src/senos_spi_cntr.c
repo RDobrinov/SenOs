@@ -49,7 +49,10 @@ static esp_err_t senos_spi_write(senos_dev_transaction_t *transaction, void *han
 static esp_err_t senos_spi_wr(senos_dev_transaction_t *transaction, void *handle);
 static esp_err_t senos_spi_desc(void *handle, char *stats, size_t max_chars, bool type);
 static esp_err_t senos_spi_stats(void *handle, char *stats, size_t max_chars);
+
+static uint32_t senos_spi_getid(void *handle);
 static esp_err_t senos_spi_reset(void *handle);
+
 
 /** Internal helper functions */
 static senos_spi_device_t *senos_spi_find_device(uint32_t id);
@@ -63,7 +66,8 @@ static senos_drv_api senos_spi_api = {
     ._wr = &senos_spi_wr,
     ._desc = &senos_spi_desc,
     ._stats = &senos_spi_stats,
-    ._reset = &senos_spi_reset
+    ._reset = &senos_spi_reset,
+    ._getid = &senos_spi_getid
 };  /*!< Sensor API */
 
 void spi_hex(const uint8_t *buf, size_t len) {
@@ -257,7 +261,7 @@ static esp_err_t senos_spi_write(senos_dev_transaction_t *transaction, void *han
         .addr = transaction->dev_reg,
         .cmd = transaction->dev_cmd,
         .rxlength = 0,
-        .length = (transaction->rdBytes) << 3,
+        .length = (transaction->wrBytes) << 3,
         .rx_buffer = NULL,
         .tx_buffer = NULL,
     };
@@ -315,6 +319,11 @@ static esp_err_t senos_spi_stats(void *handle, char *stats, size_t max_chars) {
             device->stats.snd, smkb, (device->stats.snd > 1000000) ? "MB" : "KB",
             device->stats.crc_error, device->stats.timeouts, device->stats.other);
     return ESP_OK;
+}
+
+static uint32_t senos_spi_getid(void *handle) {
+    senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
+    return device->device_id;
 }
 
 static esp_err_t senos_spi_reset(void *handle)

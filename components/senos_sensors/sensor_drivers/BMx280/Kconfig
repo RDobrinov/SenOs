@@ -1,0 +1,133 @@
+menu "BMX280 Sensor Configuration"
+    menu "Temperature measurement"
+        choice SENOS_BMX280_OVERSAMPLING_TEMPERATURE
+            prompt "Default temperature oversampling"
+            default SENOS_BMX280_OVERSAMPLING_Tx1
+            help
+                "Select defaul sensor resolution"
+            config SENOS_BMX280_OVERSAMPLING_Tx1
+                bool "Temperature oversampling x1"
+            config SENOS_BMX280_OVERSAMPLING_Tx2
+                bool "Temperature oversampling x2"
+            config SENOS_BMX280_OVERSAMPLING_Tx4
+                bool "Temperature oversampling x4"
+            config SENOS_BMX280_OVERSAMPLING_Tx8
+                bool "Temperature oversampling x8"
+            config SENOS_BMX280_OVERSAMPLING_Tx16
+                bool "Temperature oversampling x16"
+        endchoice
+        config SENOS_BMX280_OVERSAMPLING_TEMPERATURE
+            int
+            default 1 if SENOS_BMX280_OVERSAMPLING_Tx1
+            default 2 if SENOS_BMX280_OVERSAMPLING_Tx2
+            default 3 if SENOS_BMX280_OVERSAMPLING_Tx4
+            default 4 if SENOS_BMX280_OVERSAMPLING_Tx8
+            default 5 if SENOS_BMX280_OVERSAMPLING_Tx18
+
+        config SENOS_BMX280_DECIMALS_T
+        int "Temperature decimal places"
+        range 0 4
+        default 2
+        help
+            Default decimals for measured temperature
+    endmenu
+    menu "Pressure measurement"
+        choice SENOS_BMX280_OVERSAMPLING_PRESSURE
+            prompt "Default pressure oversampling"
+            default SENOS_BMX280_OVERSAMPLING_Px1
+            help
+                "Select default pressure oversampling"
+            config SENOS_BMX280_OVERSAMPLING_Px0
+                bool "Pressure measurement disabled"
+            config SENOS_BMX280_OVERSAMPLING_Px1
+                bool "Pressure oversampling x1"
+            config SENOS_BMX280_OVERSAMPLING_Px2
+                bool "Pressure oversampling x2"
+            config SENOS_BMX280_OVERSAMPLING_Px4
+                bool "Pressure oversampling x4"
+            config SENOS_BMX280_OVERSAMPLING_Px8
+                bool "Pressure oversampling x8"
+            config SENOS_BMX280_OVERSAMPLING_Px16
+                bool "Pressure oversampling x16"
+        endchoice
+        config SENOS_BMX280_OVERSAMPLING_PRESSURE
+            int
+            default 0 if SENOS_BMX280_OVERSAMPLING_Px0
+            default 1 if SENOS_BMX280_OVERSAMPLING_Px1
+            default 2 if SENOS_BMX280_OVERSAMPLING_Px2
+            default 3 if SENOS_BMX280_OVERSAMPLING_Px4
+            default 4 if SENOS_BMX280_OVERSAMPLING_Px8
+            default 5 if SENOS_BMX280_OVERSAMPLING_Px16
+
+        config SENOS_BMX280_REPORT_HECTOPASCAL
+            bool "Report pressure in hectopascal (hPa)"
+            default n
+
+        config SENOS_BMX280_DECIMALS_P
+        int "Pressure decimal places"
+        range 0 4
+        default 2
+        help
+            Default decimals for measured pressure
+    endmenu
+    menu "Humidity measurement"
+        choice SENOS_BMX280_OVERSAMPLING_HUMIDITY
+            prompt "Default humidity oversampling"
+            default SENOS_BMX280_OVERSAMPLING_Hx1
+            help
+                "Select default humidity oversampling"
+            config SENOS_BMX280_OVERSAMPLING_Hx0
+                bool "Humidity measurement disabled"
+            config SENOS_BMX280_OVERSAMPLING_Hx1
+                bool "Pressure oversampling x1"
+            config SENOS_BMX280_OVERSAMPLING_Hx2
+                bool "Pressure oversampling x2"
+            config SENOS_BMX280_OVERSAMPLING_Hx4
+                bool "Pressure oversampling x4"
+            config SENOS_BMX280_OVERSAMPLING_Hx8
+                bool "Pressure oversampling x8"
+            config SENOS_BMX280_OVERSAMPLING_Hx16
+                bool "Pressure oversampling x16"
+        endchoice
+        config SENOS_BMX280_OVERSAMPLING_HUMIDITY
+            int
+            default 0 if SENOS_BMX280_OVERSAMPLING_Hx0
+            default 1 if SENOS_BMX280_OVERSAMPLING_Hx1
+            default 2 if SENOS_BMX280_OVERSAMPLING_Hx2
+            default 3 if SENOS_BMX280_OVERSAMPLING_Hx4
+            default 4 if SENOS_BMX280_OVERSAMPLING_Hx8
+            default 5 if SENOS_BMX280_OVERSAMPLING_Hx16
+        
+        config SENOS_BMX280_DECIMALS_H
+        int "Humidity decimal places"
+        range 0 4
+        default 2
+        help
+            Default decimals for measured humidity
+    endmenu
+    
+    config SENOS_BMX280_IIRFILTER
+        bool "Activate hardware IIR Filter"
+        help
+            Enable or disable hardware IIR Filter
+        default n
+    choice SENOS_BMX280_IIR_COEFFICIENT
+        prompt "Default IIR Filter coefficient"
+        depends on SENOS_BMX280_IIRFILTER
+        default SENOS_BMX280_IIR_COEFFICIENTx8
+        config SENOS_BMX280_IIR_COEFFICIENTx2
+            bool "Filter coefficient 2"
+        config SENOS_BMX280_IIR_COEFFICIENTx4
+            bool "Filter coefficient 4"
+        config SENOS_BMX280_IIR_COEFFICIENTx8
+            bool "Filter coefficient 8"
+        config SENOS_BMX280_IIR_COEFFICIENTx16
+            bool "Filter coefficient 16"
+    endchoice
+    config SENOS_BMX280_IIR_COEFFICIENT
+        int
+        default 1 if SENOS_BMX280_IIR_COEFFICIENTx2
+        default 2 if SENOS_BMX280_IIR_COEFFICIENTx4
+        default 3 if SENOS_BMX280_IIR_COEFFICIENTx8
+        default 4 if SENOS_BMX280_IIR_COEFFICIENTx16
+endmenu

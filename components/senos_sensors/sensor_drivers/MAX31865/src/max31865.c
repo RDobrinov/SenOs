@@ -20,10 +20,16 @@
 #define MAX31865_ONESHOT_CLEAR 0    /*!< Clear one shot */
 
 #define MAX31865_DEFAULT_DECIMALS CONFIG_SENOS_MAX31865_DECIMALS  /*!< Default magnitude decimals */
-#define MAX31856_MAX_CONVERT_TIME 65    /*!< Maximum conversation time ( 62.5 for 50Hz filter ) */
+#define MAX31856_MAX_CONVERT_TIME 70    /*!< Maximum conversation time ( 62.5 for 50Hz filter ) + plus safeguard */
 
 #define MAX31865_CONFIG_READ_ADDRESS 0x00 /*!< Configuration register read address */
 #define MAX31865_CONFIG_WRITE_ADDRESS 0x80 /*!< Configuration register write address */
+
+#ifdef CONFIG_SENOS_MAX31865_IIRFILTER
+#define SENOS_MAX31865_IIRFILTER true
+#else
+#define SENOS_MAX31865_IIRFILTER false
+#endif
 
 typedef struct {
     senos_dev_handle_t handle;  /*!< Device API handle */
@@ -103,20 +109,20 @@ static esp_err_t max31865_add(senos_sensor_hw_conf_t *config, senos_sensor_handl
     };
     max31865_sensor_t *sensor = (max31865_sensor_t *)calloc(1,sizeof(max31865_sensor_t));
     if(!sensor) return ESP_ERR_NO_MEM;
-    printf("new sensor %p\n", sensor);
     err = senos_add_device(&dev_cfg, &sensor->handle);
     if(ESP_OK != err) {
         free(sensor);
         return err;
     }
-    sensor->reg.config_value = 0b10000001; // Vbias ON, Conversation Normaly Off, 4 wire, 60Hz filter
+    sensor->reg.config_value = 0b10000001; // Vbias ON, Conversation Normaly Off, 4 wire, 50Hz filter. From Kcnfig ???
     sensor->reg.wires = config->max31865.wires_select;
     sensor->reg.filter = config->max31865.filter_select;
     sensor->temperature = (senos_sensor_magnitude_t) {
         .decimals = MAX31865_DEFAULT_DECIMALS,
         .type = MAGNITUDE_TEMPERATURE,
         .metric = METRIC_DEGREES,
-        .iir_filter = CONFIG_SENOS_MAX31865_FILTER,
+        .iir_filter = SENOS_MAX31865_IIRFILTER,
+        //.iir_filter = false,
         .oversampling = true
     };
     if(config->max31865.r_ref == 0) config->max31865.r_ref = 400;
@@ -164,11 +170,13 @@ static esp_err_t max31865_read(void *handle) {
     err = (*(sensor->handle->api))->_read(&tr, sensor->handle);
     if(ESP_OK != err || (sensor->reg.rtd_lsb & 0x01)) return ESP_ERR_INVALID_RESPONSE;
     uint16_t adc_readout = ((sensor->reg.rtd_msb << 8) | (sensor->reg.rtd_lsb)) >> 1;
-    if(sensor->temperature.iir_filter) {
+    if(sensor->temperature.iir_filter && sensor->temperature.iir_init) {
         sensor->temperature.value = ((sensor->temperature.value >> 4) * 0x04) + ((adc_readout << 4) * 0x0C);
     } else {
         sensor->temperature.value = adc_readout << 8;
     }
+    sensor->temperature.valid = ((~sensor->reg.rtd_lsb) & 0x01);
+    if(!sensor->temperature.iir_init && sensor->temperature.valid) sensor->temperature.iir_init = true;
     return ESP_OK;
     //return (*(sensor->handle->api))->_write(&tr, sensor->handle);
 }
@@ -184,7 +192,6 @@ static esp_err_t max31865_getvalue(void *handle, senos_sensor_mag_caps_t *magnit
                 */
                 *((uint32_t *)&mag->magnitude) = *((uint32_t *)&sensor->temperature) & 0x0000FFFFLU;
                 /** Calculate RTD */
-                sensor->temperature.valid = ((~sensor->reg.rtd_lsb) & 0x01);
                 double rtd = (double)((int16_t)((float)(0.005 + ((((sensor->temperature.value >> 4) + 5) >> 4) * sensor->r_ref) / 32768.0) * 100) / 100.0);
                 /*
                 * Rational polynomial function from Mosaic Industries site Section RTD Calibration
@@ -192,12 +199,8 @@ static esp_err_t max31865_getvalue(void *handle, senos_sensor_mag_caps_t *magnit
                 * Average absolute error is only 0.015°C over the full temperature range
                 */
                 double value =-245.19+ ( rtd * (2.5293 + rtd * (-0.066046 + rtd * (0.0040422 -0.0000020697 * rtd))) / (1 + (rtd * (-0.025422 + rtd * (0.0016883-0.0000013601 * rtd)))));
-                //double value = rtd*(2.5293+rtd*(0.066046+rtd*(0.0040422+rtd*(-0.0000020697))))/(1+rtd*(-0.025422+rtd*(0.0016883+rtd*(-0.0000013601))))-245.19;
-                //double value = -245.19 + ( ( rtd * (2.5293 + rtd * (-0.066046 + rtd * (4.0422e-3 + -2.0697e-6 * rtd))))
-                //                / (1 + (rtd * (-0.025422 + rtd * (1.6883e-3 -1.3601e-6 * rtd)))) );
                 /** Apply magnitude value */
                 mag->magnitude.value = (uint32_t)((value * senos_sensor_magnitude_divider[sensor->temperature.decimals]) + 0.5);
-                //printf("get_value %lu\n", mag->magnitude.value);
                 break;
             default:
                 mag->magnitude.valid = false;
@@ -218,7 +221,7 @@ static esp_err_t max31865_getcaps(void *handle, senos_sensor_caps_t *caps) {
         .decimals = MAGNITUDE_MAX_DECIMALS,
         .type = MAGNITUDE_TEMPERATURE,
         .metric = METRIC_DEGREES,
-        .iir_filter = false,
+        .iir_filter = true,
         .oversampling = true
     };
     new_magnitude->next = NULL;
