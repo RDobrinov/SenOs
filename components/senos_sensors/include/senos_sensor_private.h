@@ -63,6 +63,39 @@ typedef struct {
 
 typedef senos_sensor_interface *senos_sensor_interface_t;
 
+typedef enum {
+    SENOS_SENSOR_INIT,
+    SENOS_SENSOR_WAIT,
+    SENOS_SENSOR_WARM,
+    SENOS_SENSOR_PREPARE,
+    SENOS_SENSOR_MEASURE,
+    SENOS_SENSOR_READ,
+    SENOS_SENSOR_GET,
+    SENOS_SENSOR_COOL
+} senos_sensor_states_t;
+
+typedef struct {
+    senos_sensor_states_t state;
+    uint32_t end;
+} senos_sensor_timing_t;
+
+typedef struct senos_sensor {
+    struct {
+        uint32_t wait_for_next;
+        uint32_t report:8;
+        uint32_t meas_count:8;
+        uint32_t iir_init:1;
+        uint32_t not_used:15;
+        uint32_t meas_value;
+    } meas_conf;
+    senos_sensor_timing_t state_timing;
+    senos_sensor_caps_t caps;
+    senos_sensor_handle_t *handle;
+    struct senos_sensor *next;
+} senos_sensor_data_t;
+
+typedef senos_sensor_data_t *senos_sensor_data_handle_t;
+
 #ifdef __cplusplus
 }
 #endif 

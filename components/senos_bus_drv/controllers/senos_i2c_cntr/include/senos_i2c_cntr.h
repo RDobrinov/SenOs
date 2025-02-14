@@ -19,7 +19,7 @@ extern "C" {
  * @return
  *      - Handle to I2C bus
  */
-void *senos_i2c_get_ctrl_handle(void);
+void *fnSenosI2CCtrlGetHandle(void);
 
 #ifdef __cplusplus
 }

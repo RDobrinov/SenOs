@@ -40,34 +40,34 @@ typedef struct senos_spi_device {
     struct senos_spi_device *next;  /*!< Pointer to next elements */
 } senos_spi_device_t;
 
-static esp_err_t senos_spi_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
-static esp_err_t senos_spi_deattach( senos_dev_handle_t handle);
-static esp_err_t senos_spi_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices);
+static esp_err_t fnSenosSPICtrlAttach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
+static esp_err_t fnSenosSPICtrlDeattach( senos_dev_handle_t handle);
+static esp_err_t fnSenosSPICtrlScan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices);
 
-static esp_err_t senos_spi_read(senos_dev_transaction_t *transaction, void *handle);
-static esp_err_t senos_spi_write(senos_dev_transaction_t *transaction, void *handle);
-static esp_err_t senos_spi_wr(senos_dev_transaction_t *transaction, void *handle);
-static esp_err_t senos_spi_desc(void *handle, char *stats, size_t max_chars, bool type);
-static esp_err_t senos_spi_stats(void *handle, char *stats, size_t max_chars);
+static esp_err_t fnSenosSPICtrlRead(senos_dev_transaction_t *transaction, void *handle);
+static esp_err_t fnSenosSPICtrlWrite(senos_dev_transaction_t *transaction, void *handle);
+static esp_err_t fnSenosSPICtrlWriteRead(senos_dev_transaction_t *transaction, void *handle);
+static esp_err_t fnSenosSPICtrlDesc(void *handle, char *stats, size_t max_chars, bool type);
+static esp_err_t fnSenosSPICtrlStats(void *handle, char *stats, size_t max_chars);
 
-static uint32_t senos_spi_getid(void *handle);
-static esp_err_t senos_spi_reset(void *handle);
+static uint32_t fnSenosSPICtrlGetID(void *handle);
+static esp_err_t fnSenosSPICtrlReset(void *handle);
 
 
 /** Internal helper functions */
-static senos_spi_device_t *senos_spi_find_device(uint32_t id);
+static senos_spi_device_t *fnSenosSPICtrlFindDevice(uint32_t id);
 
 static senos_spibus_host_t *spi_hosts;    /*!< Available SPI Hosts status */
 static senos_spi_device_t *device_list = NULL; /*!< Attached to bus devices */
-static senos_bus_drv bus_control = {._attach = &senos_spi_attach, ._deattach = &senos_spi_deattach, ._scanbus = &senos_spi_bus_scan}; /*!< Bus control pointers */
+static senos_bus_drv bus_control = {._attach = &fnSenosSPICtrlAttach, ._deattach = &fnSenosSPICtrlDeattach, ._scanbus = &fnSenosSPICtrlScan}; /*!< Bus control pointers */
 static senos_drv_api senos_spi_api = {
-    ._read = &senos_spi_read,
-    ._write = &senos_spi_write,
-    ._wr = &senos_spi_wr,
-    ._desc = &senos_spi_desc,
-    ._stats = &senos_spi_stats,
-    ._reset = &senos_spi_reset,
-    ._getid = &senos_spi_getid
+    ._read = &fnSenosSPICtrlRead,
+    ._write = &fnSenosSPICtrlWrite,
+    ._wr = &fnSenosSPICtrlWriteRead,
+    ._desc = &fnSenosSPICtrlDesc,
+    ._stats = &fnSenosSPICtrlStats,
+    ._reset = &fnSenosSPICtrlReset,
+    ._getid = &fnSenosSPICtrlGetID
 };  /*!< Sensor API */
 
 void spi_hex(const uint8_t *buf, size_t len) {
@@ -79,7 +79,7 @@ void spi_hex(const uint8_t *buf, size_t len) {
     return;
 }
 
-void *senos_spi_get_ctrl_handle(void) {
+void *fnSenosSPICtrlGetHandle(void) {
     if(!spi_hosts) {
         spi_hosts = (senos_spibus_host_t *)calloc(SPIBUS_HOST_MAX, sizeof(senos_spibus_host_t));
         if(!spi_hosts) return NULL;
@@ -90,7 +90,7 @@ void *senos_spi_get_ctrl_handle(void) {
     return &bus_control;
 }
 
-static esp_err_t senos_spi_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle) {
+static esp_err_t fnSenosSPICtrlAttach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle) {
     if(dev_cfg->bus_type != SENOS_BUS_SPI) return ESP_ERR_INVALID_ARG;
     senos_spi_device_id_t new_device_id = {
         .mosi_gpio = dev_cfg->dev_spi.mosi_gpio,
@@ -108,7 +108,7 @@ static esp_err_t senos_spi_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
             }
         }
     }
-    if(senos_spi_find_device(new_device_id.id)) return ESP_ERR_NOT_SUPPORTED;
+    if(fnSenosSPICtrlFindDevice(new_device_id.id)) return ESP_ERR_NOT_SUPPORTED;
 
     uint64_t bus_pinmask = (
             BIT64(dev_cfg->dev_spi.mosi_gpio) | BIT64(dev_cfg->dev_spi.miso_gpio) | 
@@ -193,7 +193,7 @@ static esp_err_t senos_spi_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
     return ESP_OK;
 }
 
-static esp_err_t senos_spi_deattach(senos_dev_handle_t handle) {
+static esp_err_t fnSenosSPICtrlDeattach(senos_dev_handle_t handle) {
     if(!handle) return ESP_ERR_INVALID_ARG;
     if(handle->bus_type != SENOS_BUS_SPI) return ESP_ERR_INVALID_ARG;
     senos_spi_device_t *device = device_list, *target = NULL;
@@ -225,11 +225,11 @@ static esp_err_t senos_spi_deattach(senos_dev_handle_t handle) {
     free(device);
     return ESP_OK;
 }
-static esp_err_t senos_spi_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices) {
+static esp_err_t fnSenosSPICtrlScan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices) {
     return ESP_FAIL;
 }
 
-static esp_err_t senos_spi_read(senos_dev_transaction_t *transaction, void *handle) {
+static esp_err_t fnSenosSPICtrlRead(senos_dev_transaction_t *transaction, void *handle) {
     esp_err_t err ;
     if(transaction->rdBytes == 0) return ESP_ERR_INVALID_SIZE;
     senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
@@ -252,7 +252,7 @@ static esp_err_t senos_spi_read(senos_dev_transaction_t *transaction, void *hand
     return err;
 }
 
-static esp_err_t senos_spi_write(senos_dev_transaction_t *transaction, void *handle) {
+static esp_err_t fnSenosSPICtrlWrite(senos_dev_transaction_t *transaction, void *handle) {
     esp_err_t err;
     if(transaction->wrBytes == 0) return ESP_ERR_INVALID_SIZE;
     uint8_t *dma_buf = NULL;
@@ -285,15 +285,11 @@ static esp_err_t senos_spi_write(senos_dev_transaction_t *transaction, void *han
     return err;
 }
 
-static esp_err_t senos_spi_wr(senos_dev_transaction_t *transaction, void *handle) {
+static esp_err_t fnSenosSPICtrlWriteRead(senos_dev_transaction_t *transaction, void *handle) {
     return ESP_FAIL;
-    /*esp_err_t err;
-    senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
-    if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
-    return err;*/
 }
 
-static esp_err_t senos_spi_desc(void *handle, char *stats, size_t max_chars, bool type) {
+static esp_err_t fnSenosSPICtrlDesc(void *handle, char *stats, size_t max_chars, bool type) {
     if(max_chars < 34 || !stats) return ESP_ERR_INVALID_SIZE;
     senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
     if(type) {
@@ -309,7 +305,7 @@ static esp_err_t senos_spi_desc(void *handle, char *stats, size_t max_chars, boo
     return ESP_OK;
 }
 
-static esp_err_t senos_spi_stats(void *handle, char *stats, size_t max_chars) {
+static esp_err_t fnSenosSPICtrlStats(void *handle, char *stats, size_t max_chars) {
     if(max_chars == 0 || !stats) return ESP_ERR_INVALID_SIZE;
     senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
     float rmkb = (device->stats.rcv > 1000000) ? (float)device->stats.rcv/1000000.0 : (float)device->stats.rcv/1000.0;
@@ -321,18 +317,18 @@ static esp_err_t senos_spi_stats(void *handle, char *stats, size_t max_chars) {
     return ESP_OK;
 }
 
-static uint32_t senos_spi_getid(void *handle) {
+static uint32_t fnSenosSPICtrlGetID(void *handle) {
     senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
     return device->device_id;
 }
 
-static esp_err_t senos_spi_reset(void *handle)
+static esp_err_t fnSenosSPICtrlReset(void *handle)
 {
     return ESP_OK;
 }
 
 /** Internal helper functions */
-static senos_spi_device_t *senos_spi_find_device(uint32_t id){
+static senos_spi_device_t *fnSenosSPICtrlFindDevice(uint32_t id){
     for(senos_spi_device_t *device = device_list; device != NULL; device = device->next)
         if(device->device_id == id) return device;
     return NULL;

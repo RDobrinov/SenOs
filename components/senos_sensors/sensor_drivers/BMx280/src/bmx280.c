@@ -182,13 +182,13 @@ static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_
             .cmd_bytes = 0
         }
     };
-    if(ESP_OK != senos_probe_device(&dev_cfg)) {
+    if(ESP_OK != fnSenosBusProbeDevice(&dev_cfg)) {
         dev_cfg.dev_i2c.device_address = 0x77;
-        if(ESP_OK != senos_probe_device(&dev_cfg)) return ESP_ERR_NOT_FOUND;
+        if(ESP_OK != fnSenosBusProbeDevice(&dev_cfg)) return ESP_ERR_NOT_FOUND;
     }
     bmx280_sensor_t *new_bmx = (bmx280_sensor_t *)calloc(1,sizeof(bmx280_sensor_t));
     if(!new_bmx) return ESP_ERR_NO_MEM;
-    err = senos_add_device(&dev_cfg, &new_bmx->handle);
+    err = fnSenosBusAddDevice(&dev_cfg, &new_bmx->handle);
     if(ESP_OK != err) {
         free(new_bmx);
         return err;
@@ -222,7 +222,7 @@ static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_
 
 static esp_err_t bmx280_remove(void *handle) {
     bmx280_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
-    if(ESP_OK != senos_remove_device(sensor->handle)) return ESP_FAIL;  /* Device deattach failed by some reason */
+    if(ESP_OK != fnSenosBusRemoveDevice(sensor->handle)) return ESP_FAIL;  /* Device deattach failed by some reason */
     free(sensor);
     return ESP_OK;
 }

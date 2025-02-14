@@ -30,35 +30,35 @@ typedef struct senos_i2c_device {
 } senos_i2c_device_t;
 
 
-static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
-static esp_err_t senos_i2c_deattach(senos_dev_handle_t handle);
-static esp_err_t senos_i2c_probe(senos_dev_cfg_t *dev_cfg);
-static esp_err_t senos_i2c_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices);
+static esp_err_t fnSenosI2CCtrlAttach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle);
+static esp_err_t fnSenosI2CCtrlDeattach(senos_dev_handle_t handle);
+static esp_err_t fnSenosI2CCtrlProbe(senos_dev_cfg_t *dev_cfg);
+static esp_err_t fnSenosI2CCtrlScan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices);
 
-static esp_err_t senos_i2c_read(senos_dev_transaction_t *transaction, void *handle);
-static esp_err_t senos_i2c_write(senos_dev_transaction_t *transaction, void *handle);
-static esp_err_t senos_i2c_wr(senos_dev_transaction_t *transaction, void *handle);
-static esp_err_t senos_i2c_desc(void *handle, char *stats, size_t max_chars, bool type);
-static esp_err_t senos_i2c_stats(void *handle, char *stats, size_t max_chars);
-static esp_err_t senos_i2c_reset(void *handle);
+static esp_err_t fnSenosI2CCtrlRead(senos_dev_transaction_t *transaction, void *handle);
+static esp_err_t fnSenosI2CCtrlWrite(senos_dev_transaction_t *transaction, void *handle);
+static esp_err_t fnSenosI2CCtrlWriteRead(senos_dev_transaction_t *transaction, void *handle);
+static esp_err_t fnSenosI2CCtrlDesc(void *handle, char *stats, size_t max_chars, bool type);
+static esp_err_t fnSenosI2CCtrlStats(void *handle, char *stats, size_t max_chars);
+static esp_err_t fnSenosI2CCtrlReset(void *handle);
 
-static uint32_t senos_i2c_getid(void *handle);
+static uint32_t fnSenosI2CCtrlGetID(void *handle);
 
 /** Internal helper functions */
 static senos_i2c_device_t *senos_i2c_find_device(uint32_t id);
-static void senos_i2c_release_master(i2c_master_bus_handle_t handle);
+static void fnSenosI2CCtrlReleaseMaster(i2c_master_bus_handle_t handle);
 static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, senos_i2c_device_t *handle);
 
 static senos_i2c_device_t *device_list = NULL;
-static senos_bus_drv bus_control = {._attach = &senos_i2c_attach, ._deattach = &senos_i2c_deattach, ._probe = &senos_i2c_probe, ._scanbus = &senos_i2c_bus_scan};
+static senos_bus_drv bus_control = {._attach = &fnSenosI2CCtrlAttach, ._deattach = &fnSenosI2CCtrlDeattach, ._probe = &fnSenosI2CCtrlProbe, ._scanbus = &fnSenosI2CCtrlScan};
 static senos_drv_api senos_i2c_api = {
-    ._read = &senos_i2c_read,
-    ._write = &senos_i2c_write,
-    ._wr = &senos_i2c_wr,
-    ._desc = &senos_i2c_desc,
-    ._stats = &senos_i2c_stats,
-    ._reset = &senos_i2c_reset,
-    ._getid = &senos_i2c_getid
+    ._read = &fnSenosI2CCtrlRead,
+    ._write = &fnSenosI2CCtrlWrite,
+    ._wr = &fnSenosI2CCtrlWriteRead,
+    ._desc = &fnSenosI2CCtrlDesc,
+    ._stats = &fnSenosI2CCtrlStats,
+    ._reset = &fnSenosI2CCtrlReset,
+    ._getid = &fnSenosI2CCtrlGetID
 };
 
 static uint8_t transaction_buffer[32];
@@ -73,11 +73,11 @@ void i2c_hex(const uint8_t *buf, size_t len) {
     return;
 }
 
-void *senos_i2c_get_ctrl_handle(void) {
+void *fnSenosI2CCtrlGetHandle(void) {
     return &bus_control;
 }
 
-static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle) {
+static esp_err_t fnSenosI2CCtrlAttach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *handle) {
     if(dev_cfg->bus_type != SENOS_BUS_I2C) return ESP_ERR_INVALID_ARG;
     uint64_t pinmask = (BIT64(dev_cfg->dev_i2c.scl_gpio) | BIT64(dev_cfg->dev_i2c.sda_gpio));
     i2c_master_bus_handle_t bus_handle = NULL;
@@ -121,14 +121,14 @@ static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
     esp_err_t err = i2c_master_bus_add_device(bus_handle, &device_conf, new_device_handle);
     if(ESP_OK != err) {
         free(new_device_handle);
-        senos_i2c_release_master(bus_handle);
+        fnSenosI2CCtrlReleaseMaster(bus_handle);
         return err;
     }
     senos_i2c_device_t *new_device = (senos_i2c_device_t *)calloc(1, sizeof(senos_i2c_device_t));
     if(!new_device) {
         i2c_master_bus_rm_device(*new_device_handle);
         free(new_device_handle);
-        senos_i2c_release_master(bus_handle);
+        fnSenosI2CCtrlReleaseMaster(bus_handle);
         return ESP_ERR_NO_MEM;
     }
     *handle = (senos_dev_handle_t)calloc(1, sizeof(senos_dev_handle));
@@ -148,7 +148,7 @@ static esp_err_t senos_i2c_attach(senos_dev_cfg_t *dev_cfg, senos_dev_handle_t *
     return ESP_OK;
 }
 
-static esp_err_t senos_i2c_deattach( senos_dev_handle_t handle) {
+static esp_err_t fnSenosI2CCtrlDeattach( senos_dev_handle_t handle) {
     if(!handle) return ESP_ERR_INVALID_ARG;
     if(handle->bus_type != SENOS_BUS_I2C) return ESP_ERR_INVALID_ARG;
     senos_i2c_device_t *device = device_list, *target = NULL;
@@ -165,11 +165,11 @@ static esp_err_t senos_i2c_deattach( senos_dev_handle_t handle) {
         free(req_device);
         free(handle);
     } else return ESP_FAIL;
-    senos_i2c_release_master(master_handle);
+    fnSenosI2CCtrlReleaseMaster(master_handle);
     return ESP_OK;
 }
 
-static esp_err_t senos_i2c_probe(senos_dev_cfg_t *dev_cfg) {
+static esp_err_t fnSenosI2CCtrlProbe(senos_dev_cfg_t *dev_cfg) {
     if(dev_cfg->bus_type != SENOS_BUS_I2C) return ESP_ERR_NOT_FOUND;
     esp_err_t err;
     uint64_t pinmask = (BIT64(dev_cfg->dev_i2c.scl_gpio) | BIT64(dev_cfg->dev_i2c.sda_gpio));
@@ -196,15 +196,15 @@ static esp_err_t senos_i2c_probe(senos_dev_cfg_t *dev_cfg) {
         }
     } /* <- I2C Controller acquisition */
     err = i2c_master_probe(bus_handle, dev_cfg->dev_i2c.device_address, dev_cfg->dev_i2c.xfer_timeout_ms);
-    senos_i2c_release_master(bus_handle);
+    fnSenosI2CCtrlReleaseMaster(bus_handle);
     return err;
 }
 
-static esp_err_t senos_i2c_bus_scan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices) {
+static esp_err_t fnSenosI2CCtrlScan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices) {
     return ESP_OK;
 }
 
-static esp_err_t senos_i2c_read(senos_dev_transaction_t *transaction, void *handle) {
+static esp_err_t fnSenosI2CCtrlRead(senos_dev_transaction_t *transaction, void *handle) {
     esp_err_t err;
     senos_i2c_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base);
     if(transaction->rdBytes == 0) return ESP_ERR_INVALID_SIZE;
@@ -221,7 +221,7 @@ static esp_err_t senos_i2c_read(senos_dev_transaction_t *transaction, void *hand
     return err;
 }
 
-static esp_err_t senos_i2c_write(senos_dev_transaction_t *transaction, void *handle) {
+static esp_err_t fnSenosI2CCtrlWrite(senos_dev_transaction_t *transaction, void *handle) {
     esp_err_t err;
     senos_i2c_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base);
     if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
@@ -235,7 +235,7 @@ static esp_err_t senos_i2c_write(senos_dev_transaction_t *transaction, void *han
     return err;
 }
 
-static esp_err_t senos_i2c_wr(senos_dev_transaction_t *transaction, void *handle) {
+static esp_err_t fnSenosI2CCtrlWriteRead(senos_dev_transaction_t *transaction, void *handle) {
     esp_err_t err;
     senos_i2c_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base);
     if(ESP_OK != _prepare_transaction(transaction, device)) return ESP_ERR_INVALID_SIZE;
@@ -252,7 +252,7 @@ static esp_err_t senos_i2c_wr(senos_dev_transaction_t *transaction, void *handle
     return err;
 }
 
-static esp_err_t senos_i2c_desc(void *handle, char *stats, size_t max_chars, bool type) {
+static esp_err_t fnSenosI2CCtrlDesc(void *handle, char *stats, size_t max_chars, bool type) {
     if(max_chars < 34 || !stats) return ESP_ERR_INVALID_SIZE;
     senos_i2c_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base);
     if(type) {
@@ -266,7 +266,7 @@ static esp_err_t senos_i2c_desc(void *handle, char *stats, size_t max_chars, boo
     return ESP_OK;
 }
 
-static esp_err_t senos_i2c_stats(void *handle, char *stats, size_t max_chars) {
+static esp_err_t fnSenosI2CCtrlStats(void *handle, char *stats, size_t max_chars) {
     if(max_chars == 0 || !stats) return ESP_ERR_INVALID_SIZE;
     senos_i2c_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base);
     float rmkb = (device->stats.rcv > 1000000) ? (float)device->stats.rcv/1000000.0 : (float)device->stats.rcv/1000.0;
@@ -278,12 +278,12 @@ static esp_err_t senos_i2c_stats(void *handle, char *stats, size_t max_chars) {
     return ESP_OK;
 }
 
-static esp_err_t senos_i2c_reset(void *handle)
+static esp_err_t fnSenosI2CCtrlReset(void *handle)
 {
     return ESP_OK;
 }
 
-static uint32_t senos_i2c_getid(void *handle) {
+static uint32_t fnSenosI2CCtrlGetID(void *handle) {
     return ((senos_i2c_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base))->device_id;
 }
 
@@ -294,7 +294,7 @@ static senos_i2c_device_t *senos_i2c_find_device(uint32_t id){
     return NULL;
 }
 
-static void senos_i2c_release_master(i2c_master_bus_handle_t handle) {
+static void fnSenosI2CCtrlReleaseMaster(i2c_master_bus_handle_t handle) {
     if(handle->device_list.slh_first) return;
     uint64_t pinmask = (BIT64(handle->base->scl_num) | BIT64(handle->base->sda_num));
     if(ESP_OK == i2c_del_master_bus(handle)){

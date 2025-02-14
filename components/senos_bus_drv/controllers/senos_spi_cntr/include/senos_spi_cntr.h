@@ -19,7 +19,7 @@ extern "C" {
  * @return
  *      - Handle to SPI bus
  */
-void *senos_spi_get_ctrl_handle(void);
+void *fnSenosSPICtrlGetHandle(void);
 
 #ifdef __cplusplus
 }

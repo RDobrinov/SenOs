@@ -119,7 +119,7 @@ static esp_err_t ds18x20_add(senos_sensor_hw_conf_t *config, senos_sensor_handle
     };
     ds18x20_sensor_t *new_ds = (ds18x20_sensor_t *)calloc(1,sizeof(ds18x20_sensor_t));
     if(!new_ds) return ESP_ERR_NO_MEM;
-    err = senos_add_device(&dev_cfg, &new_ds->handle);
+    err = fnSenosBusAddDevice(&dev_cfg, &new_ds->handle);
     if(ESP_OK != err) {
         free(new_ds);
         return err;
@@ -135,12 +135,13 @@ static esp_err_t ds18x20_add(senos_sensor_hw_conf_t *config, senos_sensor_handle
     };
     new_ds->base = &ds18x20_api;
     (*handle) = &new_ds->base;
+    printf("Driver %p (%p)->%p\n",new_ds, handle, &new_ds->base);
     return ESP_OK;
 }
 
 static esp_err_t ds18x20_remove(void *handle) {
     ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
-    if(ESP_OK != senos_remove_device(sensor->handle)) return ESP_FAIL;  /* Device deattach failed by some reason */
+    if(ESP_OK != fnSenosBusRemoveDevice(sensor->handle)) return ESP_FAIL;  /* Device deattach failed by some reason */
     free(sensor);
     return ESP_OK;
 }

@@ -109,7 +109,7 @@ static esp_err_t max31865_add(senos_sensor_hw_conf_t *config, senos_sensor_handl
     };
     max31865_sensor_t *sensor = (max31865_sensor_t *)calloc(1,sizeof(max31865_sensor_t));
     if(!sensor) return ESP_ERR_NO_MEM;
-    err = senos_add_device(&dev_cfg, &sensor->handle);
+    err = fnSenosBusAddDevice(&dev_cfg, &sensor->handle);
     if(ESP_OK != err) {
         free(sensor);
         return err;
@@ -133,7 +133,7 @@ static esp_err_t max31865_add(senos_sensor_hw_conf_t *config, senos_sensor_handl
 }
 static esp_err_t max31865_remove(void *handle) {
     max31865_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , max31865_sensor_t, base);
-    if(ESP_OK != senos_remove_device(sensor->handle)) return ESP_FAIL;  /* Device deattach failed by some reason */
+    if(ESP_OK != fnSenosBusRemoveDevice(sensor->handle)) return ESP_FAIL;  /* Device deattach failed by some reason */
     free(sensor);
     return ESP_OK;
 }

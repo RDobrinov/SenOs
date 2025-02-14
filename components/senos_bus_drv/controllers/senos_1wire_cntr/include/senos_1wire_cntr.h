@@ -19,7 +19,7 @@ extern "C" {
  * @return
  *      - return
  */
-void *senos_1wire_get_ctrl_handle(void);
+void *fnSenosOneWireCtrlGetHandle(void);
 
 #ifdef __cplusplus
 }

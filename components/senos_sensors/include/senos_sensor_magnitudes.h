@@ -58,7 +58,8 @@ typedef struct {
         uint32_t iir_init:1;        /*!< IIR Filter init value loaded */
         uint32_t reserved:5;
     };
-    uint32_t value;             /*!< Magnitude value */
+    uint32_t value;         /*!< Magnitude value */
+    uint32_t report_value;  /*!< Report value. DO NOT CHANGE THIS. RESERVED FOR SENSOR TASK */
 } senos_sensor_magnitude_t;
 
 #ifdef __cplusplus
