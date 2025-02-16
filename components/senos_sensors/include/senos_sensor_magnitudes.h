@@ -44,7 +44,7 @@ typedef enum {
 /** Type of sensor magnitude */
 typedef struct {
     /** REMARK FOR DEVELOPER
-     * Never insert new variable in first 16 bits, use reserved only
+     * Never insert new variable in first 17 bits, use reserved only
      * This will broke _get private function implementation
      */
     struct {
@@ -52,14 +52,15 @@ typedef struct {
         uint32_t metric:6;          /*!< Magnitude metric */
         uint32_t decimals:3;        /*!< Magnitide decimals provided by sensor */
         uint32_t valid:1;           /*!< Data is valid */
+        uint32_t report_valid:1;    /*!< Report value loaded */
         uint32_t resolution:4;      /*!< Sensor resolution 1 low to 15 high. 0 means Auto/Default */
         uint32_t iir_filter:3;      /*!< IIR Filter order. Custom implementation for different sensors */
         uint32_t oversampling:3;    /*!< Oversampling 0=No oversampling/Magnitude disabled */
         uint32_t iir_init:1;        /*!< IIR Filter init value loaded */
-        uint32_t reserved:5;
+        uint32_t reserved:4;
     };
     uint32_t value;         /*!< Magnitude value */
-    uint32_t report_value;  /*!< Report value. DO NOT CHANGE THIS. RESERVED FOR SENSOR TASK */
+    uint32_t report_value;  /*!< Report value. DO NOT CHANGE INSIDE _get */
 } senos_sensor_magnitude_t;
 
 #ifdef __cplusplus

@@ -59,6 +59,8 @@ typedef struct {
     senos_sensor_magnitude_t temperature;    /*!< Magnitide temperature */
 } max31865_sensor_t;
 
+static const char *ccSensorName = "Pt100";
+
 static esp_err_t max31865_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t **handle);
 static esp_err_t max31865_remove(void *handle);
 
@@ -71,6 +73,7 @@ static esp_err_t max31865_getcaps(void *handle, senos_sensor_caps_t *caps);
 static esp_err_t max31865_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
 
 static uint32_t max31865_getid(void *handle);
+static char* max31865_getname(void *handle);
 
 static esp_err_t max31865_apply_config(max31865_sensor_t *sensor);
 
@@ -84,7 +87,8 @@ static senos_sensor_api max31865_api = {
     ._getvalue = &max31865_getvalue,
     ._getcaps = &max31865_getcaps,
     ._config = &max31865_config,
-    ._getid = &max31865_getid
+    ._getid = &max31865_getid,
+    ._getname = &max31865_getname
 };
 
 static esp_err_t max31865_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t **handle) {
@@ -184,13 +188,15 @@ static esp_err_t max31865_read(void *handle) {
 static esp_err_t max31865_getvalue(void *handle, senos_sensor_mag_caps_t *magnitudes) {
     max31865_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , max31865_sensor_t, base);
     for(senos_sensor_mag_caps_t *mag = magnitudes; mag != NULL; mag = mag->next) {
-        mag->magnitude = (senos_sensor_magnitude_t){.type = mag->magnitude.type};
+        //mag->magnitude = (senos_sensor_magnitude_t){.type = mag->magnitude.type};
+        mag->magnitude = (senos_sensor_magnitude_t){.type = mag->magnitude.type,
+                .report_valid = mag->magnitude.report_valid, .report_value = mag->magnitude.report_value};
         switch (mag->magnitude.type) {
             case MAGNITUDE_TEMPERATURE:
                 /** Transfer two LSB ow magnitude bmx structure to two LSB in result linked magnitudes list 
                  * This will transfer type, metric, decimals and valid flag to result structure
                 */
-                *((uint32_t *)&mag->magnitude) = *((uint32_t *)&sensor->temperature) & 0x0000FFFFLU;
+                *((uint32_t *)&mag->magnitude) = (*((uint32_t *)&mag->magnitude) & 0x00010000) | (*((uint32_t *)&sensor->temperature) & 0x0000FFFFLU);
                 /** Calculate RTD */
                 double rtd = (double)((int16_t)((float)(0.005 + ((((sensor->temperature.value >> 4) + 5) >> 4) * sensor->r_ref) / 32768.0) * 100) / 100.0);
                 /*
@@ -248,6 +254,10 @@ static esp_err_t max31865_config(void *handle, senos_sensor_mag_caps_t *magnitud
 static uint32_t max31865_getid(void *handle) {
     max31865_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , max31865_sensor_t, base);
     return (*(sensor->handle->api))->_getid(sensor->handle);
+}
+
+static char* max31865_getname(void *handle) {
+    return ccSensorName;
 }
 
 static esp_err_t max31865_apply_config(max31865_sensor_t *sensor) {

@@ -51,6 +51,7 @@ typedef struct {
     esp_err_t (*_getcaps)(void *handle, senos_sensor_caps_t *caps);
     esp_err_t (*_config)(void *handle, senos_sensor_mag_caps_t *magnitudes);
     uint32_t (*_getid)(void *handle);
+    char* (*_getname)(void *handle);
     bool (*_ready)(void *handle);
 } senos_sensor_api;
 
@@ -84,9 +85,7 @@ typedef struct senos_sensor {
         uint32_t wait_for_next;
         uint32_t report:8;
         uint32_t meas_count:8;
-        uint32_t iir_init:1;
-        uint32_t not_used:15;
-        uint32_t meas_value;
+        uint32_t not_used:16;
     } meas_conf;
     senos_sensor_timing_t state_timing;
     senos_sensor_caps_t caps;

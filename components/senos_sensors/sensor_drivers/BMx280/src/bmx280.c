@@ -130,6 +130,8 @@ void bmx_hd(const uint8_t *buf, size_t len) {
     return;
 }
 
+static const char *ccSensorName[] = {"BMP280", "BME280"};
+
 static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t **handle);
 static esp_err_t bmx280_remove(void *handle);
 
@@ -144,6 +146,7 @@ static esp_err_t bmx280_getcaps(void *handle, senos_sensor_caps_t *caps);
 static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
 
 static uint32_t bmx280_getid(void *handle);
+static char* bmx280_getname(void *handle);
 
 /**
  * esp_err_t (*_getcaps)(void *handle, senos_sensor_caps_t *caps);
@@ -158,7 +161,8 @@ static senos_sensor_api bmx280_api = {
     ._getvalue = &bmx280_getvalue,
     ._getcaps = &bmx280_getcaps,
     ._config = &bmx280_config,
-    ._getid = &bmx280_getid
+    ._getid = &bmx280_getid,
+    ._getname = &bmx280_getname
 };
 
 static esp_err_t bmx_apply_config(bmx280_sensor_t *bmx);
@@ -411,23 +415,25 @@ static esp_err_t bmx280_read(void *handle) {
 static esp_err_t bmx280_getvalue(void *handle, senos_sensor_mag_caps_t *magnitudes) {
     bmx280_sensor_t *bmx = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
     for(senos_sensor_mag_caps_t *mag = magnitudes; mag != NULL; mag = mag->next) {
-        mag->magnitude = (senos_sensor_magnitude_t){.type = mag->magnitude.type};
+        //mag->magnitude = (senos_sensor_magnitude_t){.type = mag->magnitude.type};
+        mag->magnitude = (senos_sensor_magnitude_t){.type = mag->magnitude.type, 
+                .report_valid = mag->magnitude.report_valid, .report_value = mag->magnitude.report_value};
         switch (mag->magnitude.type) {
             case MAGNITUDE_TEMPERATURE:
                 /** Transfer two LSB ow magnitude bmx structure to two LSB in result linked magnitudes list 
                  * This will transfer type, metric, decimals and valid flag to result structure
                 */
-                *((uint32_t *)&mag->magnitude) = *((uint32_t *)&bmx->temperature) & 0x0000FFFFLU;
+                *((uint32_t *)&mag->magnitude) = (*((uint32_t *)&mag->magnitude) & 0x00010000) | (*((uint32_t *)&bmx->temperature) & 0x0000FFFFLU);
                 mag->magnitude.value = (uint32_t)((((float)((int32_t)bmx->temperature.value / 25600.0)) * 
                     senos_sensor_magnitude_divider[bmx->temperature.decimals]) + 0.5);
                 break;
             case MAGNITUDE_PRESSURE:
-                *((uint32_t *)&mag->magnitude) = *((uint32_t *)&bmx->pressure) & 0x0000FFFFLU;
+                *((uint32_t *)&mag->magnitude) = (*((uint32_t *)&mag->magnitude) & 0x00010000) | (*((uint32_t *)&bmx->pressure) & 0x0000FFFFLU);
                 mag->magnitude.value = (uint32_t)(((((float)((int32_t)bmx->pressure.value / 256.0)) / BMX280_REPORT_HECTOPASCAL) * 
                     senos_sensor_magnitude_divider[bmx->pressure.decimals]) + 0.5);
                 break;
             case MAGNITUDE_HUMIDITY:
-                *((uint32_t *)&mag->magnitude) = *((uint32_t *)&bmx->humidity) & 0x0000FFFFLU;
+                *((uint32_t *)&mag->magnitude) = (*((uint32_t *)&mag->magnitude) & 0x00010000) | (*((uint32_t *)&bmx->humidity) & 0x0000FFFFLU);
                 mag->magnitude.value = (uint32_t)((((float)((int32_t)bmx->humidity.value / 1024.0)) * 
                     senos_sensor_magnitude_divider[bmx->humidity.decimals]) + 0.5);
                 break;
@@ -513,6 +519,11 @@ static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes
 static uint32_t bmx280_getid(void *handle) {
     bmx280_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
     return (*(sensor->handle->api))->_getid(sensor->handle);
+}
+
+static char* bmx280_getname(void *handle) {
+    bmx280_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
+    return (char *)ccSensorName[sensor->chip_id == BMX280_ID_BME280];
 }
 
 static esp_err_t bmx_apply_config(bmx280_sensor_t *bmx) {

@@ -33,13 +33,15 @@ void hd(const uint8_t *buf, size_t len) {
 void app_main(void)
 {
     printf("Hello world!\n");
+    /*
     uint32_t seconds = 5;
     uint32_t will_wait = 5 * configTICK_RATE_HZ;
     TickType_t start = xTaskGetTickCount();
     TickType_t end = start + will_wait;
     while(end > xTaskGetTickCount()) vTaskDelay(1);
     printf("%lu, Ticks to wait: %lu, Wait period start at: %lu and end at %lu\n", seconds, will_wait, start, end);
-    return;
+    return; 
+    */
     senos_sensor_config_t conf;
     conf.hw_cfg = (senos_sensor_hw_conf_t) {
         .type = SENSOR_DS18X20,
@@ -51,6 +53,41 @@ void app_main(void)
     conf.timing = (senos_sensor_meas_timing_t) {
         .measure_interval = 10,
         .report_every = 6
+    };
+    fnSenosSensorAdd(&conf);
+    conf.hw_cfg = (senos_sensor_hw_conf_t) {
+        .type = SENSOR_MAX31865,
+        .max31865 = {
+            .cs = GPIO_NUM_15,
+            .mosi = GPIO_NUM_13,
+            .miso = GPIO_NUM_12,
+            .sclk = GPIO_NUM_14,
+            .r_ref = 432,
+            .wires_select = MAX31865_3WIRE_SENSOR,
+            .filter_select = MAX31865_FILTER_50HZ
+        }
+    };
+    conf.timing = (senos_sensor_meas_timing_t) {
+        .measure_interval = 5,
+        .report_every = 6
+    };
+    fnSenosSensorAdd(&conf);
+    conf.hw_cfg = (senos_sensor_hw_conf_t) {
+        .type = SENSOR_BMX280,
+        .bmx280 = {.scl = GPIO_NUM_26, .sda = GPIO_NUM_18, .spi3w = false}
+    };
+    conf.timing = (senos_sensor_meas_timing_t) {
+        .measure_interval = 15,
+        .report_every = 4
+    };
+    fnSenosSensorAdd(&conf);
+    conf.hw_cfg = (senos_sensor_hw_conf_t) {
+        .type = SENSOR_BMX280,
+        .bmx280 = {.scl = GPIO_NUM_22, .sda = GPIO_NUM_21, .spi3w = false}
+    };
+    conf.timing = (senos_sensor_meas_timing_t) {
+        .measure_interval = 15,
+        .report_every = 4
     };
     fnSenosSensorAdd(&conf);
     return;

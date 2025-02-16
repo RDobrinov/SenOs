@@ -20,6 +20,7 @@ static void vSenOSSensorTask(void *pvParameters);
 //static void senos_sensor_event_handler(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data);
 
 const uint16_t senos_sensor_magnitude_divider[] = {1, 10, 100, 1000, 10000};
+static const char *ccMagnitudeFormats[] = {"%.0f", "%.1f", "%.2f", "%.3f", "%.4f"};
 
 static void *(*pvSenosBusCtrlHandle[4])(void) = {&ds18x20_get_interface, &bmx280_get_interface, &max31865_get_interface, NULL};
 static senos_drv_bus_t _sensor2bus[3] = {SENOS_BUS_1WIRE, SENOS_BUS_I2C, SENOS_BUS_SPI};
@@ -77,7 +78,7 @@ static void vSenOSSensorTask(void *pvParameters) {
                     case SENOS_SENSOR_WAIT:
                         sensor->state_timing.state = SENOS_SENSOR_WARM;
                         if(sensor->caps.warmup_time) {
-                            printf("Run warmup\n");
+                            //printf("Run warmup\n");
                             sensor->state_timing.end = sensor->caps.warmup_time + ticks;
                             break;
                         }
@@ -85,32 +86,65 @@ static void vSenOSSensorTask(void *pvParameters) {
                     case SENOS_SENSOR_WARM:
                         sensor->state_timing.state = SENOS_SENSOR_PREPARE;
                         if(sensor->caps.prepare_time) {
-                            printf("Run prepare\n");
+                            //printf("Run prepare\n");
                             sensor->state_timing.end = sensor->caps.prepare_time + ticks;
                             break;
                         }
                         __attribute__ ((fallthrough));
                     case SENOS_SENSOR_PREPARE:
                         sensor->state_timing.state = SENOS_SENSOR_MEASURE;
-                        printf("Run measure\n");
+                        //printf("Run measure\n");
+                        (*sensor->handle)->_measure(sensor->handle);    //Check for errors.
                         sensor->state_timing.end = sensor->caps.measure_time + ticks;
                         break;
                     case SENOS_SENSOR_MEASURE:
                         sensor->state_timing.state = SENOS_SENSOR_READ;
-                        printf("Run read\n");
+                        //printf("Run read\n");
+                        (*sensor->handle)->_read(sensor->handle);
                         break;
                     case SENOS_SENSOR_READ:
                         sensor->state_timing.state = SENOS_SENSOR_GET;
-                        printf("Run get\n");
+                        //printf("Run get\n");
+                        (*sensor->handle)->_getvalue(sensor->handle, sensor->caps.mag_caps);
+                        sensor->meas_conf.meas_count = (sensor->meas_conf.meas_count + 1) % sensor->meas_conf.report;
+                        for(senos_sensor_mag_caps_t *sensor_mag_cap = sensor->caps.mag_caps; sensor_mag_cap != NULL; sensor_mag_cap = sensor_mag_cap->next) {
+                            if(sensor_mag_cap->magnitude.valid && sensor->meas_conf.report > 1) {
+                                if(sensor_mag_cap->magnitude.report_valid) {
+                                    //printf("[SenOS_Sensor] %08lX mvalue %ld, rvalue %ld\n", (*sensor->handle)->_getid(sensor->handle), 
+                                    //    (int32_t)sensor_mag_cap->magnitude.value, (int32_t)sensor_mag_cap->magnitude.report_value);
+                                    int32_t iir_value = 25 * ((int32_t)sensor_mag_cap->magnitude.report_value - (int32_t)sensor_mag_cap->magnitude.value);
+                                    iir_value += iir_value < 0 ? -50 : 50;
+                                    sensor_mag_cap->magnitude.report_value = (uint32_t)((int32_t)sensor_mag_cap->magnitude.report_value - iir_value / 100);
+                                    //sensor_mag_cap->magnitude.report_value = (uint32_t)((int32_t)sensor_mag_cap->magnitude.report_value 
+                                    //    - ((int32_t)((0.25 * ((int32_t)sensor_mag_cap->magnitude.report_value - (int32_t)sensor_mag_cap->magnitude.value) * 100.0) + 0.5) / 100));
+                                } else {
+                                    sensor_mag_cap->magnitude.report_value = sensor_mag_cap->magnitude.value;
+                                    sensor_mag_cap->magnitude.report_valid = true;
+                                }
+                            }
+                            //printf("[SenOS_Sensor] %08lX Report value %f (report.valid: %d)\n", (*sensor->handle)->_getid(sensor->handle), (int32_t)(sensor_mag_cap->magnitude.report_value) / 
+                            //        (float)senos_sensor_magnitude_divider[sensor_mag_cap->magnitude.decimals], sensor_mag_cap->magnitude.report_valid);
+                        }
                         break;
                     case SENOS_SENSOR_GET:
                         sensor->state_timing.state = SENOS_SENSOR_COOL;
-                        printf("Post data\n");
-                        if(sensor->meas_conf.iir_init) {
-                            //sensor->meas_conf.meas_value = sensor->caps.
+                        //printf("Post data\n");
+                        //sprintf(format, "Measured %%.%df\n", magnitude->magnitude.decimals);
+                        if(!sensor->meas_conf.meas_count) {
+                            uint32_t id = (*sensor->handle)->_getid(sensor->handle);
+                            for(senos_sensor_mag_caps_t *sensor_mag_cap = sensor->caps.mag_caps; sensor_mag_cap != NULL; sensor_mag_cap = sensor_mag_cap->next) {
+                                printf("[%08lX] %s Report ", id, (*sensor->handle)->_getname(sensor->handle));
+                                if(sensor_mag_cap->magnitude.decimals) {
+                                    printf(ccMagnitudeFormats[sensor_mag_cap->magnitude.decimals], sensor_mag_cap->magnitude.report_value / (float)senos_sensor_magnitude_divider[sensor_mag_cap->magnitude.decimals]);
+                                }
+                                else {
+                                    printf("%ld", sensor_mag_cap->magnitude.report_value);
+                                }
+                                printf("\n");
+                            }
                         }
                         if(sensor->caps.cooldown_time) {
-                            printf("Run cooldown\n");
+                            //printf("Run cooldown\n");
                             sensor->state_timing.end = sensor->caps.cooldown_time + ticks;
                             break;
                         }
@@ -145,19 +179,6 @@ static void vSenOSSensorTask(void *pvParameters) {
     printf("Task running\n");
     xSemaphoreGive(task_cfg.sensor_lock);
     while(true) vTaskDelay(100);
-}
-
-void _fnSetNextStep(senos_sensor_data_handle_t sensor, TickType_t ticks) {
-    if(sensor->state_timing.state == SENOS_SENSOR_WAIT && (sensor->caps.warmup_time || sensor->caps.prepare_time)) {
-        if(sensor->caps.warmup_time) {
-            sensor->state_timing.state = SENOS_SENSOR_WARM;
-            sensor->state_timing.end = sensor->caps.warmup_time + ticks;
-            return;
-        }
-        sensor->state_timing.state = SENOS_SENSOR_PREPARE;
-        sensor->state_timing.end = sensor->caps.warmup_time + ticks;
-        return;
-    }
 }
 
 esp_err_t fnSenosSensorScan(senos_sensor_hw_conf_t *dv, uint8_t *list, size_t *len) {
