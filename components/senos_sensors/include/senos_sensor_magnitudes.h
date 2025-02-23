@@ -22,23 +22,29 @@ extern "C" {
 
 /** Magnitude decimal divider values */
 extern const uint16_t senos_sensor_magnitude_divider[];
+extern const char *ccMagitudeName[];
+extern const char *ccMetricName[];
+extern const char *ccMetricSymbol[];
+
 
 /** Magnitudes */
 typedef enum {
     MAGNITUDE_NONE,         /*!< No magnitude */
     MAGNITUDE_TEMPERATURE,  /*!< Temperature */
-    MAGNITUDE_HUMIDITY,     /*!< Relative humidity */
+    MAGNITUDE_REL_HUMIDITY, /*!< Relative humidity */
     MAGNITUDE_PRESSURE,     /*!< Pressure */
     MAGNITUDE_LAST          /*!< Failsafe magnitude */
 } senos_magnitudes_t;
 
 /** Magnitude metrics */
 typedef enum {
-    METRIC_NONE = 0,    /*!< No metric */
-    METRIC_DEGREES,     /*!< Degrees */
-    METRIC_PRECENTAGE,  /*!< Precentage */
-    METRIC_PASCAL,      /*!< Pascal */
-    METRIC_HECTOPASCAL  /*!< Hectopascal */
+    METRIC_NONE = 0,        /*!< No metric */
+    METRIC_DEG_CELSIUS,     /*!< Degrees */
+    METRIC_DEG_FAHRENHEIT,  /*!< Degrees */
+    METRIC_DEG_KELVIN,      /*!< Degrees */
+    METRIC_PRECENTAGE,      /*!< Precentage */
+    METRIC_PASCAL,          /*!< Pascal */
+    METRIC_HECTOPASCAL      /*!< Hectopascal */
 } senos_metrics_t;
 
 /** Type of sensor magnitude */

@@ -43,6 +43,7 @@ static esp_err_t fnSenosI2CCtrlStats(void *handle, char *stats, size_t max_chars
 static esp_err_t fnSenosI2CCtrlReset(void *handle);
 
 static uint32_t fnSenosI2CCtrlGetID(void *handle);
+static uint64_t fnSenosI2CCtrlGetHwAddrs(void *handle);
 
 /** Internal helper functions */
 static senos_i2c_device_t *senos_i2c_find_device(uint32_t id);
@@ -52,13 +53,14 @@ static esp_err_t _prepare_transaction(senos_dev_transaction_t *transaction, seno
 static senos_i2c_device_t *device_list = NULL;
 static senos_bus_drv bus_control = {._attach = &fnSenosI2CCtrlAttach, ._deattach = &fnSenosI2CCtrlDeattach, ._probe = &fnSenosI2CCtrlProbe, ._scanbus = &fnSenosI2CCtrlScan};
 static senos_drv_api senos_i2c_api = {
-    ._read = &fnSenosI2CCtrlRead,
-    ._write = &fnSenosI2CCtrlWrite,
-    ._wr = &fnSenosI2CCtrlWriteRead,
-    ._desc = &fnSenosI2CCtrlDesc,
-    ._stats = &fnSenosI2CCtrlStats,
-    ._reset = &fnSenosI2CCtrlReset,
-    ._getid = &fnSenosI2CCtrlGetID
+    ._read = fnSenosI2CCtrlRead,
+    ._write = fnSenosI2CCtrlWrite,
+    ._wr = fnSenosI2CCtrlWriteRead,
+    ._desc = fnSenosI2CCtrlDesc,
+    ._stats = fnSenosI2CCtrlStats,
+    ._reset = fnSenosI2CCtrlReset,
+    ._getid = fnSenosI2CCtrlGetID,
+    ._gethwaddr = fnSenosI2CCtrlGetHwAddrs
 };
 
 static uint8_t transaction_buffer[32];
@@ -285,6 +287,10 @@ static esp_err_t fnSenosI2CCtrlReset(void *handle)
 
 static uint32_t fnSenosI2CCtrlGetID(void *handle) {
     return ((senos_i2c_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base))->device_id;
+}
+
+static uint64_t fnSenosI2CCtrlGetHwAddrs(void *handle) {
+    return (uint64_t)((senos_i2c_device_id_t)((((senos_i2c_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_i2c_device_t, base))->device_id))).i2caddr;
 }
 
 /** Internal helper functions */

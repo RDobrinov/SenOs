@@ -92,6 +92,7 @@ typedef struct {
     esp_err_t (*_stats)(void *handle, char *stats, size_t max_chars);
     esp_err_t (*_reset)(void *handle);
     uint32_t (*_getid)(void *handle);
+    uint64_t (*_gethwaddr)(void *handle);
 } senos_drv_api;
 
 typedef senos_drv_api *senos_drv_api_t;
@@ -103,6 +104,16 @@ typedef struct {
 } senos_dev_handle;
 
 typedef senos_dev_handle *senos_dev_handle_t;
+
+typedef struct {
+    uint32_t snd;
+    uint32_t rcv;
+    uint64_t timeouts:16;
+    uint64_t crc_error:16;
+    uint64_t other:16;
+    uint64_t notused:12;
+    uint64_t spi_reserved:4;
+} senos_device_stats_t;
 
 #ifdef __cplusplus
 }

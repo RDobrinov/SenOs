@@ -22,6 +22,43 @@ extern "C" {
 #include "senos_sensor_base.h"
 #include "senos_sensor_magnitudes.h"
 
+typedef struct {
+    senos_known_sensors_t type;
+    uint64_t dev_address;
+    union {
+        union {
+            struct {
+                uint32_t gpio:7;        /*!< 1-Wire bus pin */
+                uint32_t tx_channel:3;  /*!< RMT TX Channel */
+                uint32_t rx_channel:3;  /*!< RMT RX Channel */
+                uint32_t reserved:3;    /*!< Not used */
+                uint32_t intr_id:16;    /*!< CRC-16/MCRF4XX Seed is part of MAC */
+            };
+            uint32_t container;         /*!< Configuration container */
+        } onewire;
+        union {
+            struct {
+                uint32_t i2caddr:10;    /*!< Device I2C Address */
+                uint32_t i2cbus:2;      /*!< Controller bus number */
+                uint32_t gpiosda:7;     /*!< Bus SDA GPIO */
+                uint32_t gpioscl:7;     /*!< Bus SDA GPIO */
+                uint32_t reserved:6;    /*!< Not used */
+            };
+            uint32_t container;         /*!< Configuration container */
+        } i2c;
+        union {
+            struct {
+                uint32_t mosi_gpio:7;   /*!< MOSI IO Pin */
+                uint32_t miso_gpio:7;   /*!< MISO IO Pin */
+                uint32_t sclk_gpio:7;   /*!< SCLK IO Pin */
+                uint32_t cs_gpio:7;     /*!< CS IO Pin */
+                uint32_t host_id:4;     /*!< SPI Host number */
+            };
+            uint32_t container;         /*!< Configuration container */
+        } spi;
+    };
+} senos_sensor_bus_conf_t;
+
 /** Single magnitude element */
 typedef struct senos_sensor_mag_caps {
     senos_sensor_magnitude_t magnitude; /*!< Magnitude descriptor */
@@ -51,6 +88,8 @@ typedef struct {
     esp_err_t (*_getcaps)(void *handle, senos_sensor_caps_t *caps);
     esp_err_t (*_config)(void *handle, senos_sensor_mag_caps_t *magnitudes);
     uint32_t (*_getid)(void *handle);
+    uint32_t (*_getbus)(void *handle);
+    uint64_t (*_gethwaddrs)(void *handle);
     char* (*_getname)(void *handle);
     bool (*_ready)(void *handle);
 } senos_sensor_api;

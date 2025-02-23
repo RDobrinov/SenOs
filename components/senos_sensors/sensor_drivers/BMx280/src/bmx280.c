@@ -146,6 +146,8 @@ static esp_err_t bmx280_getcaps(void *handle, senos_sensor_caps_t *caps);
 static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
 
 static uint32_t bmx280_getid(void *handle);
+static uint64_t bmx280_gethwaddrs(void *handle);
+static uint32_t bmx280_getbus(void *handle);
 static char* bmx280_getname(void *handle);
 
 /**
@@ -154,15 +156,17 @@ static char* bmx280_getname(void *handle);
  */
 
 static senos_sensor_api bmx280_api = {
-    ._init = &bmx280_init,
-    ._prepare = &bmx280_prepare,
-    ._measure = &bmx280_measure,
-    ._read = &bmx280_read,
-    ._getvalue = &bmx280_getvalue,
-    ._getcaps = &bmx280_getcaps,
-    ._config = &bmx280_config,
-    ._getid = &bmx280_getid,
-    ._getname = &bmx280_getname
+    ._init = bmx280_init,
+    ._prepare = bmx280_prepare,
+    ._measure = bmx280_measure,
+    ._read = bmx280_read,
+    ._getvalue = bmx280_getvalue,
+    ._getcaps = bmx280_getcaps,
+    ._config = bmx280_config,
+    ._getid = bmx280_getid,
+    ._gethwaddrs = bmx280_gethwaddrs,
+    ._getbus = bmx280_getbus,
+    ._getname = bmx280_getname
 };
 
 static esp_err_t bmx_apply_config(bmx280_sensor_t *bmx);
@@ -206,14 +210,14 @@ static esp_err_t bmx280_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_
     new_bmx->osrs_p = CONFIG_SENOS_BMX280_OVERSAMPLING_PRESSURE;
     new_bmx->osrs_h = BMX280_MAGNITUDE_DISABLED;
     new_bmx->temperature = (senos_sensor_magnitude_t) {
-        .decimals = BMX280_MAX_DECIMALS,
+        .decimals = CONFIG_SENOS_BMX280_DECIMALS_P,
         .type = MAGNITUDE_TEMPERATURE,
-        .metric = METRIC_DEGREES,
+        .metric = METRIC_DEG_CELSIUS,
         .iir_filter = BMX280_DEFAULT_IIR_FILTER,
         .oversampling = CONFIG_SENOS_BMX280_DECIMALS_T,
     };
     new_bmx->pressure = (senos_sensor_magnitude_t) {
-        .decimals = BMX280_MAX_DECIMALS,
+        .decimals = CONFIG_SENOS_BMX280_DECIMALS_P,
         .type = MAGNITUDE_PRESSURE,
         .metric = BMX280_PRESSURE_METRIC,
         .iir_filter = BMX280_DEFAULT_IIR_FILTER,
@@ -264,7 +268,7 @@ static esp_err_t bmx280_init(void *handle) {
         bmx->osrs_h = CONFIG_SENOS_BMX280_OVERSAMPLING_HUMIDITY;
         bmx->humidity = (senos_sensor_magnitude_t) {
             .decimals = CONFIG_SENOS_BMX280_DECIMALS_H,
-            .type = MAGNITUDE_HUMIDITY,
+            .type = MAGNITUDE_REL_HUMIDITY,
             .metric = METRIC_PRECENTAGE,
             .iir_filter = false,
             .oversampling = CONFIG_SENOS_BMX280_OVERSAMPLING_HUMIDITY,
@@ -432,7 +436,7 @@ static esp_err_t bmx280_getvalue(void *handle, senos_sensor_mag_caps_t *magnitud
                 mag->magnitude.value = (uint32_t)(((((float)((int32_t)bmx->pressure.value / 256.0)) / BMX280_REPORT_HECTOPASCAL) * 
                     senos_sensor_magnitude_divider[bmx->pressure.decimals]) + 0.5);
                 break;
-            case MAGNITUDE_HUMIDITY:
+            case MAGNITUDE_REL_HUMIDITY:
                 *((uint32_t *)&mag->magnitude) = (*((uint32_t *)&mag->magnitude) & 0x00010000) | (*((uint32_t *)&bmx->humidity) & 0x0000FFFFLU);
                 mag->magnitude.value = (uint32_t)((((float)((int32_t)bmx->humidity.value / 1024.0)) * 
                     senos_sensor_magnitude_divider[bmx->humidity.decimals]) + 0.5);
@@ -502,7 +506,7 @@ static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes
                 bmx->osrs_p = mag->magnitude.oversampling;
                 break;
 
-            case MAGNITUDE_HUMIDITY:
+            case MAGNITUDE_REL_HUMIDITY:
                 if(bmx->chip_id == BMX280_ID_BME280) {
                     bmx->humidity.decimals = mag->magnitude.decimals;
                     bmx->osrs_h = mag->magnitude.oversampling;
@@ -519,6 +523,15 @@ static esp_err_t bmx280_config(void *handle, senos_sensor_mag_caps_t *magnitudes
 static uint32_t bmx280_getid(void *handle) {
     bmx280_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
     return (*(sensor->handle->api))->_getid(sensor->handle);
+}
+
+static uint64_t bmx280_gethwaddrs(void *handle) {
+    bmx280_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , bmx280_sensor_t, base);
+    return (*(sensor->handle->api))->_gethwaddr(sensor->handle);
+}
+
+static uint32_t bmx280_getbus(void *handle) {
+    return SENOS_BUS_I2C;
 }
 
 static char* bmx280_getname(void *handle) {

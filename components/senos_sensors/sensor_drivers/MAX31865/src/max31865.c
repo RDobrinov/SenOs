@@ -73,6 +73,8 @@ static esp_err_t max31865_getcaps(void *handle, senos_sensor_caps_t *caps);
 static esp_err_t max31865_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
 
 static uint32_t max31865_getid(void *handle);
+static uint64_t max31865_gethwaddrs(void *handle);
+static uint32_t max31865_getbus(void *handle);
 static char* max31865_getname(void *handle);
 
 static esp_err_t max31865_apply_config(max31865_sensor_t *sensor);
@@ -80,15 +82,17 @@ static esp_err_t max31865_apply_config(max31865_sensor_t *sensor);
 static const senos_sensor_interface max31865_interface = { ._add = &max31865_add, ._remove = &max31865_remove};
 
 static senos_sensor_api max31865_api = {
-    ._init = &max31865_init,
-    ._prepare = &max31865_prepare,
-    ._measure = &max31865_measure,
-    ._read = &max31865_read,
-    ._getvalue = &max31865_getvalue,
-    ._getcaps = &max31865_getcaps,
-    ._config = &max31865_config,
-    ._getid = &max31865_getid,
-    ._getname = &max31865_getname
+    ._init = max31865_init,
+    ._prepare = max31865_prepare,
+    ._measure = max31865_measure,
+    ._read = max31865_read,
+    ._getvalue = max31865_getvalue,
+    ._getcaps = max31865_getcaps,
+    ._config = max31865_config,
+    ._getid = max31865_getid,
+    ._gethwaddrs = max31865_gethwaddrs,
+    ._getbus = max31865_getbus,
+    ._getname = max31865_getname
 };
 
 static esp_err_t max31865_add(senos_sensor_hw_conf_t *config, senos_sensor_handle_t **handle) {
@@ -124,7 +128,7 @@ static esp_err_t max31865_add(senos_sensor_hw_conf_t *config, senos_sensor_handl
     sensor->temperature = (senos_sensor_magnitude_t) {
         .decimals = MAX31865_DEFAULT_DECIMALS,
         .type = MAGNITUDE_TEMPERATURE,
-        .metric = METRIC_DEGREES,
+        .metric = METRIC_DEG_CELSIUS,
         .iir_filter = SENOS_MAX31865_IIRFILTER,
         //.iir_filter = false,
         .oversampling = true
@@ -226,7 +230,7 @@ static esp_err_t max31865_getcaps(void *handle, senos_sensor_caps_t *caps) {
     new_magnitude->magnitude = (senos_sensor_magnitude_t) {
         .decimals = MAGNITUDE_MAX_DECIMALS,
         .type = MAGNITUDE_TEMPERATURE,
-        .metric = METRIC_DEGREES,
+        .metric = METRIC_DEG_CELSIUS,
         .iir_filter = true,
         .oversampling = true
     };
@@ -256,8 +260,17 @@ static uint32_t max31865_getid(void *handle) {
     return (*(sensor->handle->api))->_getid(sensor->handle);
 }
 
+static uint64_t max31865_gethwaddrs(void *handle) {
+    max31865_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , max31865_sensor_t, base);
+    return (*(sensor->handle->api))->_gethwaddr(sensor->handle);
+}
+
+static uint32_t max31865_getbus(void *handle) {
+    return SENOS_BUS_SPI;
+}
+
 static char* max31865_getname(void *handle) {
-    return ccSensorName;
+    return (char *)ccSensorName;
 }
 
 static esp_err_t max31865_apply_config(max31865_sensor_t *sensor) {

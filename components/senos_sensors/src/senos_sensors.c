@@ -21,6 +21,9 @@ static void vSenOSSensorTask(void *pvParameters);
 
 const uint16_t senos_sensor_magnitude_divider[] = {1, 10, 100, 1000, 10000};
 static const char *ccMagnitudeFormats[] = {"%.0f", "%.1f", "%.2f", "%.3f", "%.4f"};
+const char *ccMagitudeName[] = {"", "Temperature", "Humidity", "Pressure", ""};
+const char *ccMetricName[] = {"", "degrees Celsius", "degrees Fahrenheit", "kelvin", "Precents", "Pascals", "Hectopascals"};
+const char *ccMetricSymbol[] = {"", "°C", "°F", "K", "%", "Pa", "hPa"};
 
 static void *(*pvSenosBusCtrlHandle[4])(void) = {&ds18x20_get_interface, &bmx280_get_interface, &max31865_get_interface, NULL};
 static senos_drv_bus_t _sensor2bus[3] = {SENOS_BUS_1WIRE, SENOS_BUS_I2C, SENOS_BUS_SPI};
@@ -133,14 +136,14 @@ static void vSenOSSensorTask(void *pvParameters) {
                         if(!sensor->meas_conf.meas_count) {
                             uint32_t id = (*sensor->handle)->_getid(sensor->handle);
                             for(senos_sensor_mag_caps_t *sensor_mag_cap = sensor->caps.mag_caps; sensor_mag_cap != NULL; sensor_mag_cap = sensor_mag_cap->next) {
-                                printf("[%08lX] %s Report ", id, (*sensor->handle)->_getname(sensor->handle));
+                                printf("[%08lX] %s Report %s ", id, (*sensor->handle)->_getname(sensor->handle), ccMagitudeName[sensor_mag_cap->magnitude.type]);
                                 if(sensor_mag_cap->magnitude.decimals) {
                                     printf(ccMagnitudeFormats[sensor_mag_cap->magnitude.decimals], sensor_mag_cap->magnitude.report_value / (float)senos_sensor_magnitude_divider[sensor_mag_cap->magnitude.decimals]);
                                 }
                                 else {
                                     printf("%ld", sensor_mag_cap->magnitude.report_value);
                                 }
-                                printf("\n");
+                                printf("%s (%s)\n", ccMetricSymbol[sensor_mag_cap->magnitude.metric], ccMetricName[sensor_mag_cap->magnitude.metric]);
                             }
                         }
                         if(sensor->caps.cooldown_time) {
@@ -167,18 +170,7 @@ static void vSenOSSensorTask(void *pvParameters) {
             xSemaphoreTake(task_cfg.sensor_lock, portMAX_DELAY);
             sensor = task_cfg.sensor_list;
         }
-    } /*
-    senos_i2c_device_t *device = device_list, *target = NULL;
-    senos_i2c_device_t *req_device = __containerof(handle->api, senos_i2c_device_t, base);
-    while(device && (device->device_id != req_device->device_id)) {
-        target = device;
-        device = device->next;
-    }*/
-    /** Test only */
-    xSemaphoreTake(task_cfg.sensor_lock, portMAX_DELAY);
-    printf("Task running\n");
-    xSemaphoreGive(task_cfg.sensor_lock);
-    while(true) vTaskDelay(100);
+    }
 }
 
 esp_err_t fnSenosSensorScan(senos_sensor_hw_conf_t *dv, uint8_t *list, size_t *len) {

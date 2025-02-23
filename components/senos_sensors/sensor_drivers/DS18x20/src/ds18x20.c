@@ -81,6 +81,8 @@ static esp_err_t ds18x20_getcaps(void *handle, senos_sensor_caps_t *caps);
 static esp_err_t ds18x20_config(void *handle, senos_sensor_mag_caps_t *magnitudes);
 
 static uint32_t ds18x20_getid(void *handle);
+static uint64_t ds18x20_gethwaddrs(void *handle);
+static uint32_t ds18x20_getbus(void *handle);
 static char* ds18x20_getname(void *handle);
 
 static esp_err_t ds18x20_apply_config(ds18x20_sensor_t *sensor);
@@ -88,14 +90,16 @@ static esp_err_t ds18x20_apply_config(ds18x20_sensor_t *sensor);
 static const senos_sensor_interface ds18x20_interface = { ._add = &ds18x20_add, ._remove = &ds18x20_remove};
 
 static senos_sensor_api ds18x20_api = {
-    ._init = &ds18x20_init,
-    ._prepare = &ds18x20_prepare,
-    ._measure = &ds18x20_measure,
-    ._read = &ds18x20_read,
-    ._getvalue = &ds18x20_getvalue,
-    ._getcaps = &ds18x20_getcaps,
-    ._config = &ds18x20_config,
+    ._init = ds18x20_init,
+    ._prepare = ds18x20_prepare,
+    ._measure = ds18x20_measure,
+    ._read = ds18x20_read,
+    ._getvalue =&ds18x20_getvalue,
+    ._getcaps = ds18x20_getcaps,
+    ._config = ds18x20_config,
     ._getid = ds18x20_getid,
+    ._gethwaddrs = ds18x20_gethwaddrs,
+    ._getbus = ds18x20_getbus,
     ._getname = ds18x20_getname 
 };
 
@@ -131,7 +135,7 @@ static esp_err_t ds18x20_add(senos_sensor_hw_conf_t *config, senos_sensor_handle
     new_ds->temperature = (senos_sensor_magnitude_t) {
         .decimals = DS18X20_DEFAULT_DECIMALS,
         .type = MAGNITUDE_TEMPERATURE,
-        .metric = METRIC_DEGREES,
+        .metric = METRIC_DEG_CELSIUS,
         .iir_filter = false,
         .resolution = DS18X20_DEFAULT_RESOLUTION,
         .oversampling = true
@@ -226,7 +230,7 @@ static esp_err_t ds18x20_getcaps(void *handle, senos_sensor_caps_t *caps) {
     new_magnitude->magnitude = (senos_sensor_magnitude_t) {
         .decimals = MAGNITUDE_MAX_DECIMALS,
         .type = MAGNITUDE_TEMPERATURE,
-        .metric = METRIC_DEGREES,
+        .metric = METRIC_DEG_CELSIUS,
         .iir_filter = true,
         .resolution = DS18X20_RESOLUTION_12,
         .oversampling = true
@@ -262,8 +266,17 @@ static uint32_t ds18x20_getid(void *handle) {
     return (*(sensor->handle->api))->_getid(sensor->handle);
 }
 
+static uint64_t ds18x20_gethwaddrs(void *handle) {
+    ds18x20_sensor_t *sensor = __containerof((senos_sensor_handle_t *)handle , ds18x20_sensor_t, base);
+    return (*(sensor->handle->api))->_gethwaddr(sensor->handle);
+}
+
+static uint32_t ds18x20_getbus(void *handle) {
+    return SENOS_BUS_1WIRE;
+}
+
 static char* ds18x20_getname(void *handle) {
-    return ccSensorName;
+    return (char *)ccSensorName;
 }
 
 static esp_err_t ds18x20_apply_config(ds18x20_sensor_t *sensor) {

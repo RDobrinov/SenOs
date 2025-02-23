@@ -51,6 +51,7 @@ static esp_err_t fnSenosSPICtrlDesc(void *handle, char *stats, size_t max_chars,
 static esp_err_t fnSenosSPICtrlStats(void *handle, char *stats, size_t max_chars);
 
 static uint32_t fnSenosSPICtrlGetID(void *handle);
+static uint64_t fnSenosSPICtrlGetHwAddrs(void *handle);
 static esp_err_t fnSenosSPICtrlReset(void *handle);
 
 
@@ -61,13 +62,14 @@ static senos_spibus_host_t *spi_hosts;    /*!< Available SPI Hosts status */
 static senos_spi_device_t *device_list = NULL; /*!< Attached to bus devices */
 static senos_bus_drv bus_control = {._attach = &fnSenosSPICtrlAttach, ._deattach = &fnSenosSPICtrlDeattach, ._scanbus = &fnSenosSPICtrlScan}; /*!< Bus control pointers */
 static senos_drv_api senos_spi_api = {
-    ._read = &fnSenosSPICtrlRead,
-    ._write = &fnSenosSPICtrlWrite,
-    ._wr = &fnSenosSPICtrlWriteRead,
-    ._desc = &fnSenosSPICtrlDesc,
-    ._stats = &fnSenosSPICtrlStats,
-    ._reset = &fnSenosSPICtrlReset,
-    ._getid = &fnSenosSPICtrlGetID
+    ._read = fnSenosSPICtrlRead,
+    ._write = fnSenosSPICtrlWrite,
+    ._wr = fnSenosSPICtrlWriteRead,
+    ._desc = fnSenosSPICtrlDesc,
+    ._stats = fnSenosSPICtrlStats,
+    ._reset = fnSenosSPICtrlReset,
+    ._getid = fnSenosSPICtrlGetID,
+    ._gethwaddr =fnSenosSPICtrlGetHwAddrs
 };  /*!< Sensor API */
 
 void spi_hex(const uint8_t *buf, size_t len) {
@@ -318,8 +320,11 @@ static esp_err_t fnSenosSPICtrlStats(void *handle, char *stats, size_t max_chars
 }
 
 static uint32_t fnSenosSPICtrlGetID(void *handle) {
-    senos_spi_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base);
-    return device->device_id;
+    return ((senos_spi_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base))->device_id;
+}
+
+static uint64_t fnSenosSPICtrlGetHwAddrs(void *handle) {
+    return (uint64_t)(((senos_spi_device_id_t)(((senos_spi_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_spi_device_t, base))->device_id)).cs_gpio);
 }
 
 static esp_err_t fnSenosSPICtrlReset(void *handle)

@@ -45,6 +45,7 @@ static esp_err_t fnSenosOneWireCtrlStats(void *handle, char *stats, size_t max_c
 static esp_err_t fnSenosOneWireCtrlReset(void *handle);
 
 static uint32_t fnSenosOneWireCtrlGetID(void *handle);
+static uint64_t fnSenosOneWireCtrlGetHwAddrs(void *handle);
 
 static senos_1wire_device_t *fnSenosOneWireCtrlFindDevice(uint32_t id);
 
@@ -87,13 +88,14 @@ void hdump(const uint8_t *buf, size_t len) {
 static senos_1wire_device_t *device_list = NULL;
 static senos_bus_drv bus_control = {._attach = &fnSenosOneWireCtrlAttach, ._deattach = &fnSenosOneWireCtrlDeattach, ._scanbus = &fnSenosOneWireCtrlScan};
 static senos_drv_api senos_1wire_api = {
-    ._read = &fnSenosOneWireCtrlRead,
-    ._write = &fnSenosOneWireCtrlWrite,
-    ._wr = &fnSenosOneWireCtrlRead,
-    ._desc = &fnSenosOneWireCtrlDesc,
-    ._stats = &fnSenosOneWireCtrlStats,
-    ._getid = &fnSenosOneWireCtrlGetID,
-    ._reset = &fnSenosOneWireCtrlReset
+    ._read = fnSenosOneWireCtrlRead,
+    ._write = fnSenosOneWireCtrlWrite,
+    ._wr = fnSenosOneWireCtrlRead,
+    ._desc = fnSenosOneWireCtrlDesc,
+    ._stats = fnSenosOneWireCtrlStats,
+    ._getid = fnSenosOneWireCtrlGetID,
+    ._gethwaddr = fnSenosOneWireCtrlGetHwAddrs,
+    ._reset = fnSenosOneWireCtrlReset
 };
 static uint8_t transaction_buffer[32]; 
 
@@ -273,9 +275,13 @@ static esp_err_t fnSenosOneWireCtrlReset(void *handle) {
 }
 
 static uint32_t fnSenosOneWireCtrlGetID(void *handle) {
-    senos_1wire_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base);
-    return device->device_id;
-    //return ((senos_1wire_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base))->device_id;
+    //senos_1wire_device_t *device = __containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base);
+    //return device->device_id;
+    return ((senos_1wire_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base))->device_id;
+}
+
+static uint64_t fnSenosOneWireCtrlGetHwAddrs(void *handle) {
+    return ((senos_1wire_device_t *)__containerof(((senos_dev_handle_t)handle)->api , senos_1wire_device_t, base))->address;
 }
 
 static esp_err_t fnSenosOneWireCtrlScan(senos_dev_cfg_t *dev_cfg, uint8_t *list, size_t *num_of_devices) {
